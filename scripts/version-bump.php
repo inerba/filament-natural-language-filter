@@ -4,21 +4,21 @@
  * Version Bump Script
  * Automatically increments version in composer.json and creates Git tag
  */
-
 class VersionBumper
 {
     private string $composerPath;
+
     private array $composerData;
 
     public function __construct()
     {
-        $this->composerPath = __DIR__ . '/../composer.json';
+        $this->composerPath = __DIR__.'/../composer.json';
         $this->loadComposerData();
     }
 
     private function loadComposerData(): void
     {
-        if (!file_exists($this->composerPath)) {
+        if (! file_exists($this->composerPath)) {
             throw new \Exception('composer.json not found');
         }
 
@@ -26,14 +26,14 @@ class VersionBumper
         $this->composerData = json_decode($content, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \Exception('Invalid JSON in composer.json: ' . json_last_error_msg());
+            throw new \Exception('Invalid JSON in composer.json: '.json_last_error_msg());
         }
     }
 
     private function saveComposerData(): void
     {
         $content = json_encode($this->composerData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-        file_put_contents($this->composerPath, $content . "\n");
+        file_put_contents($this->composerPath, $content."\n");
     }
 
     public function getCurrentVersion(): string
@@ -78,26 +78,27 @@ class VersionBumper
     public function createGitTag(string $version): bool
     {
         $tagName = "v{$version}";
-        
+
         // Check if tag already exists
         $existingTags = shell_exec('git tag -l') ?: '';
         if (strpos($existingTags, $tagName) !== false) {
             echo "Tag {$tagName} already exists. Skipping tag creation.\n";
+
             return false;
         }
 
         // Create and push tag
         $commands = [
-            "git add composer.json",
+            'git add composer.json',
             "git commit -m \"Bump version to {$version}\"",
             "git tag {$tagName}",
-            "git push origin main",
-            "git push origin {$tagName}"
+            'git push origin main',
+            "git push origin {$tagName}",
         ];
 
         foreach ($commands as $command) {
             echo "Executing: {$command}\n";
-            $output = shell_exec($command . ' 2>&1');
+            $output = shell_exec($command.' 2>&1');
             if ($output) {
                 echo $output;
             }
@@ -109,7 +110,7 @@ class VersionBumper
     public function run(string $type = 'patch'): void
     {
         echo "🚀 Starting version bump process...\n";
-        
+
         $newVersion = $this->bumpVersion($type);
         echo "✅ Version bumped to: {$newVersion}\n";
 
@@ -124,17 +125,17 @@ class VersionBumper
 // CLI Usage
 if (php_sapi_name() === 'cli') {
     $type = $argv[1] ?? 'patch';
-    
-    if (!in_array($type, ['major', 'minor', 'patch'])) {
+
+    if (! in_array($type, ['major', 'minor', 'patch'])) {
         echo "❌ Invalid version type. Use: major, minor, or patch\n";
         exit(1);
     }
 
     try {
-        $bumper = new VersionBumper();
+        $bumper = new VersionBumper;
         $bumper->run($type);
     } catch (Exception $e) {
-        echo "❌ Error: " . $e->getMessage() . "\n";
+        echo '❌ Error: '.$e->getMessage()."\n";
         exit(1);
     }
 }

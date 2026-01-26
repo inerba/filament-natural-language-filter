@@ -2,21 +2,21 @@
 
 namespace EdrisaTuray\FilamentNaturalLanguageFilter;
 
-use Illuminate\Support\ServiceProvider;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\AzureOpenAIProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\AzureOpenAIProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
+use Illuminate\Support\ServiceProvider;
 
 class FilamentNaturalLanguageFilterServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../config/filament-natural-language-filter.php',
+            __DIR__.'/../config/filament-natural-language-filter.php',
             'filament-natural-language-filter'
         );
 
@@ -39,7 +39,7 @@ class FilamentNaturalLanguageFilterServiceProvider extends ServiceProvider
     {
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__ . '/../config/filament-natural-language-filter.php' => config_path('filament-natural-language-filter.php'),
+                __DIR__.'/../config/filament-natural-language-filter.php' => config_path('filament-natural-language-filter.php'),
             ], 'filament-natural-language-filter-config');
         }
     }

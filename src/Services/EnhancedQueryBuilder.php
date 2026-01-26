@@ -2,25 +2,22 @@
 
 namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\Relation;
 use EdrisaTuray\FilamentNaturalLanguageFilter\Enums\FilterType;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Enhanced Query Builder for Natural Language Filtering
- * 
+ *
  * This service handles the construction of complex database queries from
  * natural language input, supporting relationships, boolean logic, and
  * aggregation operations.
- * 
+ *
  * Features:
  * - Relationship filtering across related models
  * - Boolean logic (AND/OR operations)
  * - Aggregation queries (count, sum, average)
  * - Query optimization and validation
- * 
- * @package EdrisaTuray\FilamentNaturalLanguageFilter\Services
  */
 class EnhancedQueryBuilder
 {
@@ -51,10 +48,10 @@ class EnhancedQueryBuilder
 
     /**
      * Constructor
-     * 
-     * @param Builder $query The base query builder
-     * @param array $availableColumns Available columns for filtering
-     * @param array $availableRelations Available relationships for filtering
+     *
+     * @param  Builder  $query  The base query builder
+     * @param  array  $availableColumns  Available columns for filtering
+     * @param  array  $availableRelations  Available relationships for filtering
      */
     public function __construct(Builder $query, array $availableColumns = [], array $availableRelations = [])
     {
@@ -67,15 +64,15 @@ class EnhancedQueryBuilder
 
     /**
      * Apply a single filter to the query
-     * 
-     * @param array $filter The filter configuration
-     * @return void
+     *
+     * @param  array  $filter  The filter configuration
+     *
      * @throws \InvalidArgumentException If filter is invalid
      */
     public function applyFilter(array $filter): void
     {
         $this->validateFilter($filter);
-        
+
         $column = $filter['column'];
         $operator = $filter['operator'];
         $value = $filter['value'] ?? null;
@@ -84,18 +81,21 @@ class EnhancedQueryBuilder
         // Handle relationship filtering
         if ($relation && $this->isRelationshipOperator($operator)) {
             $this->applyRelationshipFilter($relation, $column, $operator, $value);
+
             return;
         }
 
         // Handle aggregation operations
         if ($this->isAggregationOperator($operator)) {
             $this->applyAggregationFilter($column, $operator, $value);
+
             return;
         }
 
         // Handle boolean logic
         if ($this->isBooleanLogicOperator($operator)) {
             $this->applyBooleanLogicFilter($filter);
+
             return;
         }
 
@@ -105,23 +105,24 @@ class EnhancedQueryBuilder
 
     /**
      * Apply relationship filter
-     * 
-     * @param string $relation The relationship name
-     * @param string $column The column to filter on
-     * @param string $operator The filter operator
-     * @param mixed $value The filter value
-     * @return void
+     *
+     * @param  string  $relation  The relationship name
+     * @param  string  $column  The column to filter on
+     * @param  string  $operator  The filter operator
+     * @param  mixed  $value  The filter value
      */
     protected function applyRelationshipFilter(string $relation, string $column, string $operator, mixed $value): void
     {
-        if (!config('filament-natural-language-filter.features.relationship_filtering.enabled', true)) {
+        if (! config('filament-natural-language-filter.features.relationship_filtering.enabled', true)) {
             Log::warning('Relationship filtering is disabled');
+
             return;
         }
 
         // Validate relationship exists
-        if (!$this->isValidRelationship($relation)) {
+        if (! $this->isValidRelationship($relation)) {
             Log::warning("Invalid relationship: {$relation}");
+
             return;
         }
 
@@ -163,22 +164,23 @@ class EnhancedQueryBuilder
 
     /**
      * Apply aggregation filter
-     * 
-     * @param string $column The column to aggregate
-     * @param string $operator The aggregation operator
-     * @param mixed $value The filter value
-     * @return void
+     *
+     * @param  string  $column  The column to aggregate
+     * @param  string  $operator  The aggregation operator
+     * @param  mixed  $value  The filter value
      */
     protected function applyAggregationFilter(string $column, string $operator, mixed $value): void
     {
-        if (!config('filament-natural-language-filter.features.aggregation_queries.enabled', true)) {
+        if (! config('filament-natural-language-filter.features.aggregation_queries.enabled', true)) {
             Log::warning('Aggregation queries are disabled');
+
             return;
         }
 
         // Validate column exists
-        if (!$this->isValidColumn($column)) {
+        if (! $this->isValidColumn($column)) {
             Log::warning("Invalid column for aggregation: {$column}");
+
             return;
         }
 
@@ -222,14 +224,14 @@ class EnhancedQueryBuilder
 
     /**
      * Apply boolean logic filter
-     * 
-     * @param array $filter The filter configuration with boolean logic
-     * @return void
+     *
+     * @param  array  $filter  The filter configuration with boolean logic
      */
     protected function applyBooleanLogicFilter(array $filter): void
     {
-        if (!config('filament-natural-language-filter.features.boolean_logic.enabled', true)) {
+        if (! config('filament-natural-language-filter.features.boolean_logic.enabled', true)) {
             Log::warning('Boolean logic is disabled');
+
             return;
         }
 
@@ -237,7 +239,8 @@ class EnhancedQueryBuilder
         $conditions = $filter['conditions'] ?? [];
 
         if (count($conditions) > $this->maxConditions) {
-            Log::warning("Too many conditions: " . count($conditions) . " (max: {$this->maxConditions})");
+            Log::warning('Too many conditions: '.count($conditions)." (max: {$this->maxConditions})");
+
             return;
         }
 
@@ -274,18 +277,18 @@ class EnhancedQueryBuilder
 
     /**
      * Apply standard filter to query
-     * 
-     * @param Builder $query The query builder
-     * @param string $column The column to filter on
-     * @param string $operator The filter operator
-     * @param mixed $value The filter value
-     * @return void
+     *
+     * @param  Builder  $query  The query builder
+     * @param  string  $column  The column to filter on
+     * @param  string  $operator  The filter operator
+     * @param  mixed  $value  The filter value
      */
     protected function applyStandardFilter(Builder $query, string $column, string $operator, mixed $value): void
     {
         // Validate column exists
-        if (!$this->isValidColumn($column)) {
+        if (! $this->isValidColumn($column)) {
             Log::warning("Invalid column: {$column}");
+
             return;
         }
 
@@ -366,21 +369,21 @@ class EnhancedQueryBuilder
 
     /**
      * Validate filter configuration
-     * 
-     * @param array $filter The filter to validate
-     * @return void
+     *
+     * @param  array  $filter  The filter to validate
+     *
      * @throws \InvalidArgumentException If filter is invalid
      */
     protected function validateFilter(array $filter): void
     {
-        if (!isset($filter['operator'])) {
+        if (! isset($filter['operator'])) {
             throw new \InvalidArgumentException('Filter must have an operator');
         }
 
         $operator = $filter['operator'];
-        
+
         // Validate operator is supported
-        if (!in_array($operator, array_merge(
+        if (! in_array($operator, array_merge(
             FilterType::getBasicTypes(),
             FilterType::getBooleanTypes(),
             FilterType::getAggregationTypes(),
@@ -391,13 +394,13 @@ class EnhancedQueryBuilder
 
         // Validate required fields based on operator type
         if ($this->isRelationshipOperator($operator)) {
-            if (!isset($filter['relation'])) {
+            if (! isset($filter['relation'])) {
                 throw new \InvalidArgumentException('Relationship filters must specify a relation');
             }
         }
 
         if ($this->isBooleanLogicOperator($operator)) {
-            if (!isset($filter['conditions']) || !is_array($filter['conditions'])) {
+            if (! isset($filter['conditions']) || ! is_array($filter['conditions'])) {
                 throw new \InvalidArgumentException('Boolean logic filters must specify conditions');
             }
         }
@@ -405,9 +408,8 @@ class EnhancedQueryBuilder
 
     /**
      * Check if operator is for relationships
-     * 
-     * @param string $operator The operator to check
-     * @return bool
+     *
+     * @param  string  $operator  The operator to check
      */
     protected function isRelationshipOperator(string $operator): bool
     {
@@ -416,9 +418,8 @@ class EnhancedQueryBuilder
 
     /**
      * Check if operator is for aggregation
-     * 
-     * @param string $operator The operator to check
-     * @return bool
+     *
+     * @param  string  $operator  The operator to check
      */
     protected function isAggregationOperator(string $operator): bool
     {
@@ -427,9 +428,8 @@ class EnhancedQueryBuilder
 
     /**
      * Check if operator is for boolean logic
-     * 
-     * @param string $operator The operator to check
-     * @return bool
+     *
+     * @param  string  $operator  The operator to check
      */
     protected function isBooleanLogicOperator(string $operator): bool
     {
@@ -438,9 +438,8 @@ class EnhancedQueryBuilder
 
     /**
      * Check if column is valid for filtering
-     * 
-     * @param string $column The column to check
-     * @return bool
+     *
+     * @param  string  $column  The column to check
      */
     protected function isValidColumn(string $column): bool
     {
@@ -449,9 +448,8 @@ class EnhancedQueryBuilder
 
     /**
      * Check if relationship is valid for filtering
-     * 
-     * @param string $relation The relationship to check
-     * @return bool
+     *
+     * @param  string  $relation  The relationship to check
      */
     protected function isValidRelationship(string $relation): bool
     {
@@ -460,8 +458,6 @@ class EnhancedQueryBuilder
 
     /**
      * Get the query builder instance
-     * 
-     * @return Builder
      */
     public function getQuery(): Builder
     {

@@ -2,23 +2,27 @@
 
 namespace EdrisaTuray\FilamentNaturalLanguageFilter\Filters;
 
-use Filament\Tables\Filters\BaseFilter;
-use Filament\Forms\Components\TextInput;
-use Illuminate\Database\Eloquent\Builder;
 use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use EdrisaTuray\FilamentNaturalLanguageFilter\Services\EnhancedQueryBuilder;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use EdrisaTuray\FilamentNaturalLanguageFilter\Services\QuerySuggestionsService;
+use Filament\Forms\Components\TextInput;
+use Filament\Tables\Filters\BaseFilter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
 class NaturalLanguageFilter extends BaseFilter
 {
     protected array $availableColumns = [];
+
     protected array $availableRelations = [];
+
     protected array $customColumnMappings = [];
+
     protected ?NaturalLanguageProcessorInterface $processor = null;
+
     protected ?QuerySuggestionsService $suggestionsService = null;
+
     protected string $searchMode = 'submit';
 
     public static function make(?string $name = 'natural_language'): static
@@ -28,41 +32,43 @@ class NaturalLanguageFilter extends BaseFilter
 
     /**
      * Set available columns for filtering
-     * 
-     * @param array $columns Array of column names that can be filtered
-     * @return static
+     *
+     * @param  array  $columns  Array of column names that can be filtered
      */
     public function availableColumns(array $columns): static
     {
         $this->availableColumns = $columns;
+
         return $this;
     }
 
     /**
      * Set available relationships for filtering
-     * 
-     * @param array $relations Array of relationship names that can be filtered
-     * @return static
+     *
+     * @param  array  $relations  Array of relationship names that can be filtered
      */
     public function availableRelations(array $relations): static
     {
         $this->availableRelations = $relations;
+
         return $this;
     }
 
     public function columnMappings(array $mappings): static
     {
         $this->customColumnMappings = $mappings;
+
         return $this;
     }
 
     public function searchMode(string $mode): static
     {
-        if (!in_array($mode, ['live', 'submit'])) {
+        if (! in_array($mode, ['live', 'submit'])) {
             throw new \InvalidArgumentException('Search mode must be either "live" or "submit"');
         }
 
         $this->searchMode = $mode;
+
         return $this;
     }
 
@@ -93,8 +99,6 @@ class NaturalLanguageFilter extends BaseFilter
 
     /**
      * Get available relationships
-     * 
-     * @return array
      */
     public function getAvailableRelations(): array
     {
@@ -103,18 +107,18 @@ class NaturalLanguageFilter extends BaseFilter
 
     /**
      * Get query suggestions for the current input
-     * 
-     * @param string $partialQuery The partial query input
+     *
+     * @param  string  $partialQuery  The partial query input
      * @return array Array of suggestion strings
      */
     public function getQuerySuggestions(string $partialQuery): array
     {
-        if (!$this->suggestionsService) {
+        if (! $this->suggestionsService) {
             $processor = $this->getProcessor();
-            if (!$processor) {
+            if (! $processor) {
                 return [];
             }
-            
+
             $this->suggestionsService = new QuerySuggestionsService(
                 $processor,
                 $this->getAvailableColumns(),
@@ -127,7 +131,7 @@ class NaturalLanguageFilter extends BaseFilter
 
     public function isActive(array $data = []): bool
     {
-        return !empty($data['query']) && strlen(trim($data['query'])) >= 3;
+        return ! empty($data['query']) && strlen(trim($data['query'])) >= 3;
     }
 
     protected function setUp(): void
@@ -182,27 +186,28 @@ class NaturalLanguageFilter extends BaseFilter
             try {
                 $this->processor = app(NaturalLanguageProcessorInterface::class);
             } catch (\Exception $e) {
-                Log::error('Failed to resolve NaturalLanguageProcessorInterface: ' . $e->getMessage());
+                Log::error('Failed to resolve NaturalLanguageProcessorInterface: '.$e->getMessage());
                 try {
                     // Fallback to factory with default provider
                     $this->processor = ProcessorFactory::create();
                 } catch (\Exception $fallbackException) {
-                    Log::error('Failed to create fallback processor: ' . $fallbackException->getMessage());
+                    Log::error('Failed to create fallback processor: '.$fallbackException->getMessage());
                     $this->processor = null;
                 }
             }
         }
+
         return $this->processor;
     }
 
     /**
      * Apply the natural language filter to the query
-     * 
+     *
      * This method processes the natural language query and applies
      * the resulting filters to the database query builder.
-     * 
-     * @param Builder $query The database query builder
-     * @param array $data The filter data containing the natural language query
+     *
+     * @param  Builder  $query  The database query builder
+     * @param  array  $data  The filter data containing the natural language query
      * @return Builder The modified query builder
      */
     public function apply(Builder $query, array $data = []): Builder
@@ -216,11 +221,11 @@ class NaturalLanguageFilter extends BaseFilter
         try {
             $processor = $this->getProcessor();
 
-            if (!$processor) {
+            if (! $processor) {
                 return $query;
             }
 
-            if (!$processor->canProcess($queryText)) {
+            if (! $processor->canProcess($queryText)) {
                 return $query;
             }
 
@@ -231,7 +236,7 @@ class NaturalLanguageFilter extends BaseFilter
                 'user_query' => $queryText,
                 'available_columns' => $this->getAvailableColumns(),
                 'available_relations' => $this->getAvailableRelations(),
-                'ai_filters' => $filters
+                'ai_filters' => $filters,
             ]);
 
             if (empty($filters)) {
@@ -247,25 +252,25 @@ class NaturalLanguageFilter extends BaseFilter
 
             // Apply each filter using the enhanced builder
             foreach ($filters as $filter) {
-                if (!isset($filter['operator'])) {
+                if (! isset($filter['operator'])) {
                     continue;
                 }
 
                 try {
                     $enhancedBuilder->applyFilter($filter);
                 } catch (\Exception $filterException) {
-                    Log::warning('Failed to apply filter: ' . $filterException->getMessage(), [
-                        'filter' => $filter
+                    Log::warning('Failed to apply filter: '.$filterException->getMessage(), [
+                        'filter' => $filter,
                     ]);
                 }
             }
 
             return $enhancedBuilder->getQuery();
         } catch (\Exception $e) {
-            Log::error('Natural Language Filter Error: ' . $e->getMessage(), [
+            Log::error('Natural Language Filter Error: '.$e->getMessage(), [
                 'query' => $queryText,
                 'available_columns' => $this->getAvailableColumns(),
-                'available_relations' => $this->getAvailableRelations()
+                'available_relations' => $this->getAvailableRelations(),
             ]);
         }
 

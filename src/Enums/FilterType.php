@@ -4,12 +4,10 @@ namespace EdrisaTuray\FilamentNaturalLanguageFilter\Enums;
 
 /**
  * Enumeration of supported filter types for natural language processing
- * 
+ *
  * This enum defines all the filter operations that can be performed
  * on database columns, including basic comparisons, date operations,
  * aggregation functions, and relationship filtering.
- * 
- * @package EdrisaTuray\FilamentNaturalLanguageFilter\Enums
  */
 enum FilterType: string
 {
@@ -54,7 +52,7 @@ enum FilterType: string
 
     /**
      * Get all basic filter types (excluding boolean logic and aggregation)
-     * 
+     *
      * @return array<string>
      */
     public static function getBasicTypes(): array
@@ -81,7 +79,7 @@ enum FilterType: string
 
     /**
      * Get boolean logic operators
-     * 
+     *
      * @return array<string>
      */
     public static function getBooleanTypes(): array
@@ -95,7 +93,7 @@ enum FilterType: string
 
     /**
      * Get aggregation operators
-     * 
+     *
      * @return array<string>
      */
     public static function getAggregationTypes(): array
@@ -111,7 +109,7 @@ enum FilterType: string
 
     /**
      * Get relationship operators
-     * 
+     *
      * @return array<string>
      */
     public static function getRelationshipTypes(): array
@@ -127,12 +125,10 @@ enum FilterType: string
 
     /**
      * Check if this filter type requires a value
-     * 
-     * @return bool
      */
     public function requiresValue(): bool
     {
-        return !in_array($this, [
+        return ! in_array($this, [
             self::IS_NULL,
             self::IS_NOT_NULL,
             self::HAS_RELATION,
@@ -142,8 +138,6 @@ enum FilterType: string
 
     /**
      * Check if this filter type supports multiple values
-     * 
-     * @return bool
      */
     public function supportsMultipleValues(): bool
     {
@@ -157,8 +151,6 @@ enum FilterType: string
 
     /**
      * Check if this is an aggregation operator
-     * 
-     * @return bool
      */
     public function isAggregation(): bool
     {
@@ -167,8 +159,6 @@ enum FilterType: string
 
     /**
      * Check if this is a relationship operator
-     * 
-     * @return bool
      */
     public function isRelationship(): bool
     {
@@ -177,8 +167,6 @@ enum FilterType: string
 
     /**
      * Check if this is a boolean logic operator
-     * 
-     * @return bool
      */
     public function isBooleanLogic(): bool
     {

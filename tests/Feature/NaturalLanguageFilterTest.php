@@ -2,15 +2,15 @@
 
 namespace EdrisaTuray\FilamentNaturalLanguageFilter\Tests\Feature;
 
-use Orchestra\Testbench\TestCase;
 use EdrisaTuray\FilamentNaturalLanguageFilter\FilamentNaturalLanguageFilterServiceProvider;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
 use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
-use Illuminate\Support\Facades\Http;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Http;
 use Mockery;
+use Orchestra\Testbench\TestCase;
 
 class NaturalLanguageFilterTest extends TestCase
 {
@@ -30,16 +30,16 @@ class NaturalLanguageFilterTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         // Set up test configuration
         Config::set('filament-natural-language-filter.provider', 'ollama');
         Config::set('filament-natural-language-filter.cache.enabled', false);
         Config::set('filament-natural-language-filter.validation.min_length', 3);
         Config::set('filament-natural-language-filter.validation.max_length', 500);
         Config::set('filament-natural-language-filter.supported_filters', [
-            'equals', 'contains', 'greater_than', 'date_after'
+            'equals', 'contains', 'greater_than', 'date_after',
         ]);
-        
+
         // Mock Ollama config
         Config::set('filament-natural-language-filter.ollama', [
             'host' => 'http://localhost:11434',
@@ -66,11 +66,11 @@ class NaturalLanguageFilterTest extends TestCase
         // Test Ollama
         $ollamaProcessor = ProcessorFactory::createWithProvider('ollama');
         $this->assertInstanceOf(OllamaProcessor::class, $ollamaProcessor);
-        
+
         // Test LM Studio
         $lmstudioProcessor = ProcessorFactory::createWithProvider('lmstudio');
         $this->assertInstanceOf(LMStudioProcessor::class, $lmstudioProcessor);
-        
+
         // Test Custom
         $customProcessor = ProcessorFactory::createWithProvider('custom');
         $this->assertInstanceOf(CustomProcessor::class, $customProcessor);
@@ -81,13 +81,13 @@ class NaturalLanguageFilterTest extends TestCase
         // Mock HTTP response
         Http::fake([
             'localhost:11434/api/generate' => Http::response([
-                'response' => '[{"column": "created_at", "operator": "date_after", "value": "2023-01-01"}]'
-            ], 200)
+                'response' => '[{"column": "created_at", "operator": "date_after", "value": "2023-01-01"}]',
+            ], 200),
         ]);
 
         $processor = ProcessorFactory::create();
         $result = $processor->processQuery('users created after 2023', ['name', 'created_at']);
-        
+
         $this->assertIsArray($result);
         $this->assertCount(1, $result);
         $this->assertEquals('created_at', $result[0]['column']);
@@ -100,20 +100,20 @@ class NaturalLanguageFilterTest extends TestCase
         // Mock HTTP response with multiple filters
         Http::fake([
             'localhost:11434/api/generate' => Http::response([
-                'response' => '[{"column": "name", "operator": "contains", "value": "john"}, {"column": "email", "operator": "contains", "value": "gmail"}]'
-            ], 200)
+                'response' => '[{"column": "name", "operator": "contains", "value": "john"}, {"column": "email", "operator": "contains", "value": "gmail"}]',
+            ], 200),
         ]);
 
         $processor = ProcessorFactory::create();
         $result = $processor->processQuery('users named john with gmail email', ['name', 'email']);
-        
+
         $this->assertIsArray($result);
         $this->assertCount(2, $result);
-        
+
         $this->assertEquals('name', $result[0]['column']);
         $this->assertEquals('contains', $result[0]['operator']);
         $this->assertEquals('john', $result[0]['value']);
-        
+
         $this->assertEquals('email', $result[1]['column']);
         $this->assertEquals('contains', $result[1]['operator']);
         $this->assertEquals('gmail', $result[1]['value']);
@@ -124,13 +124,13 @@ class NaturalLanguageFilterTest extends TestCase
         // Mock HTTP response with empty result
         Http::fake([
             'localhost:11434/api/generate' => Http::response([
-                'response' => '[]'
-            ], 200)
+                'response' => '[]',
+            ], 200),
         ]);
 
         $processor = ProcessorFactory::create();
         $result = $processor->processQuery('users created after 2023', ['name', 'created_at']);
-        
+
         $this->assertIsArray($result);
         $this->assertEmpty($result);
     }
@@ -140,13 +140,13 @@ class NaturalLanguageFilterTest extends TestCase
         // Mock HTTP response with invalid JSON
         Http::fake([
             'localhost:11434/api/generate' => Http::response([
-                'response' => 'invalid json response'
-            ], 200)
+                'response' => 'invalid json response',
+            ], 200),
         ]);
 
         $processor = ProcessorFactory::create();
         $result = $processor->processQuery('users created after 2023', ['name', 'created_at']);
-        
+
         $this->assertIsArray($result);
         $this->assertEmpty($result);
     }
@@ -155,12 +155,12 @@ class NaturalLanguageFilterTest extends TestCase
     {
         // Mock HTTP error response
         Http::fake([
-            'localhost:11434/api/generate' => Http::response([], 500)
+            'localhost:11434/api/generate' => Http::response([], 500),
         ]);
 
         $processor = ProcessorFactory::create();
         $result = $processor->processQuery('users created after 2023', ['name', 'created_at']);
-        
+
         $this->assertIsArray($result);
         $this->assertEmpty($result);
     }
@@ -168,11 +168,11 @@ class NaturalLanguageFilterTest extends TestCase
     public function test_processor_validation()
     {
         $processor = ProcessorFactory::create();
-        
+
         // Valid queries
         $this->assertTrue($processor->canProcess('users created after 2023'));
         $this->assertTrue($processor->canProcess('find users with email containing gmail'));
-        
+
         // Invalid queries
         $this->assertFalse($processor->canProcess('ab')); // Too short
         $this->assertFalse($processor->canProcess('')); // Empty
@@ -183,7 +183,7 @@ class NaturalLanguageFilterTest extends TestCase
     {
         $processor = ProcessorFactory::create();
         $types = $processor->getSupportedFilterTypes();
-        
+
         $this->assertIsArray($types);
         $this->assertContains('equals', $types);
         $this->assertContains('contains', $types);
@@ -194,22 +194,22 @@ class NaturalLanguageFilterTest extends TestCase
     public function test_processor_locale_support()
     {
         $processor = ProcessorFactory::create();
-        
+
         // Should not throw exceptions when setting locale
         $processor->setLocale('es');
         $processor->setLocale('fr');
         $processor->setLocale('de');
-        
+
         $this->assertTrue(true);
     }
 
     public function test_processor_custom_column_mappings()
     {
         $processor = ProcessorFactory::create();
-        
+
         // Should not throw exceptions when setting mappings
         $processor->setCustomColumnMappings(['name' => 'full_name', 'email' => 'email_address']);
-        
+
         $mappings = $processor->getCustomColumnMappings();
         $this->assertIsArray($mappings);
     }

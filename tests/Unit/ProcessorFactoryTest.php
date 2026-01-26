@@ -2,14 +2,14 @@
 
 namespace EdrisaTuray\FilamentNaturalLanguageFilter\Tests\Unit;
 
-use Orchestra\Testbench\TestCase;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
 use EdrisaTuray\FilamentNaturalLanguageFilter\Services\AzureOpenAIProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
 use EdrisaTuray\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use Mockery;
+use Orchestra\Testbench\TestCase;
 
 class ProcessorFactoryTest extends TestCase
 {
@@ -22,7 +22,7 @@ class ProcessorFactoryTest extends TestCase
     public function test_get_available_providers()
     {
         $providers = ProcessorFactory::getAvailableProviders();
-        
+
         $this->assertIsArray($providers);
         $this->assertContains('openai', $providers);
         $this->assertContains('azure', $providers);
@@ -80,14 +80,14 @@ class ProcessorFactoryTest extends TestCase
     public function test_get_provider_status()
     {
         $status = ProcessorFactory::getProviderStatus();
-        
+
         $this->assertIsArray($status);
         $this->assertArrayHasKey('openai', $status);
         $this->assertArrayHasKey('azure', $status);
         $this->assertArrayHasKey('ollama', $status);
         $this->assertArrayHasKey('lmstudio', $status);
         $this->assertArrayHasKey('custom', $status);
-        
+
         foreach ($status as $provider => $info) {
             $this->assertArrayHasKey('available', $info);
             $this->assertArrayHasKey('class', $info);
@@ -98,10 +98,10 @@ class ProcessorFactoryTest extends TestCase
     public function test_get_best_available_provider()
     {
         $bestProvider = ProcessorFactory::getBestAvailableProvider();
-        
+
         // Should return a string or null
         $this->assertTrue(is_string($bestProvider) || is_null($bestProvider));
-        
+
         if ($bestProvider) {
             $this->assertTrue(ProcessorFactory::isProviderSupported($bestProvider));
         }

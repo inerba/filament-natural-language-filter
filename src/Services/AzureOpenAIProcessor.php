@@ -3,9 +3,9 @@
 namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
 
 use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
 {
@@ -25,10 +25,11 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
         'date_equals',
         'date_before',
         'date_after',
-        'date_between'
+        'date_between',
     ];
 
     protected bool $isAzureOpenAiAvailable;
+
     protected string $locale;
 
     public function __construct()
@@ -39,8 +40,9 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
 
     public function processQuery(string $query, array $availableColumns = []): array
     {
-        if (!$this->isAzureOpenAiAvailable) {
-            Log::warning('Azure OpenAI is not available, cannot process query: ' . $query);
+        if (! $this->isAzureOpenAiAvailable) {
+            Log::warning('Azure OpenAI is not available, cannot process query: '.$query);
+
             return [];
         }
 
@@ -48,7 +50,8 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
         if (config('filament-natural-language-filter.cache.enabled', true)) {
             $cached = Cache::get($cacheKey);
             if ($cached !== null) {
-                Log::info('Natural Language Filter: Using cached result for query: ' . $query);
+                Log::info('Natural Language Filter: Using cached result for query: '.$query);
+
                 return $cached;
             }
         }
@@ -59,29 +62,30 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
             $response = $this->makeAzureOpenAiRequest($prompt);
             $result = $this->parseResponse($response);
 
-            if (config('filament-natural-language-filter.cache.enabled', true) && !empty($result)) {
+            if (config('filament-natural-language-filter.cache.enabled', true) && ! empty($result)) {
                 $ttl = config('filament-natural-language-filter.cache.ttl', 3600);
                 Cache::put($cacheKey, $result, $ttl);
             }
 
             Log::info('Natural Language Filter: Successfully processed query', [
                 'query' => $query,
-                'result_count' => count($result)
+                'result_count' => count($result),
             ]);
 
             return $result;
         } catch (\Exception $e) {
-            Log::error('Natural Language Filter Error: ' . $e->getMessage(), [
+            Log::error('Natural Language Filter Error: '.$e->getMessage(), [
                 'query' => $query,
-                'available_columns' => $availableColumns
+                'available_columns' => $availableColumns,
             ]);
+
             return [];
         }
     }
 
     public function canProcess(string $query): bool
     {
-        if (!$this->isAzureOpenAiAvailable) {
+        if (! $this->isAzureOpenAiAvailable) {
             return false;
         }
 
@@ -91,7 +95,7 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
 
         $length = mb_strlen($query, 'UTF-8');
 
-        return !empty($query) && $length >= $minLength && $length <= $maxLength;
+        return ! empty($query) && $length >= $minLength && $length <= $maxLength;
     }
 
     public function getSupportedFilterTypes(): array
@@ -118,24 +122,25 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
     {
         try {
             $config = config('filament-natural-language-filter.azure');
-            
-            $hasApiKey = !empty($config['api_key']);
-            $hasEndpoint = !empty($config['endpoint']);
-            $hasDeployment = !empty($config['deployment_name']);
+
+            $hasApiKey = ! empty($config['api_key']);
+            $hasEndpoint = ! empty($config['endpoint']);
+            $hasDeployment = ! empty($config['deployment_name']);
 
             $isAvailable = $hasApiKey && $hasEndpoint && $hasDeployment;
 
-            if (!$isAvailable) {
+            if (! $isAvailable) {
                 Log::warning('Azure OpenAI not available', [
                     'has_api_key' => $hasApiKey,
                     'has_endpoint' => $hasEndpoint,
-                    'has_deployment' => $hasDeployment
+                    'has_deployment' => $hasDeployment,
                 ]);
             }
 
             return $isAvailable;
         } catch (\Exception $e) {
-            Log::warning('Azure OpenAI availability check failed: ' . $e->getMessage());
+            Log::warning('Azure OpenAI availability check failed: '.$e->getMessage());
+
             return false;
         }
     }
@@ -146,7 +151,7 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
         $endpoint = rtrim($config['endpoint'], '/');
         $deploymentName = $config['deployment_name'];
         $apiVersion = $config['api_version'];
-        
+
         $url = "{$endpoint}/openai/deployments/{$deploymentName}/chat/completions?api-version={$apiVersion}";
 
         $response = Http::withHeaders([
@@ -155,19 +160,19 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
         ])->post($url, [
             'messages' => [
                 ['role' => 'system', 'content' => $this->getSystemPrompt()],
-                ['role' => 'user', 'content' => $prompt]
+                ['role' => 'user', 'content' => $prompt],
             ],
             'temperature' => $config['temperature'],
             'max_tokens' => $config['max_tokens'],
         ]);
 
-        if (!$response->successful()) {
-            throw new \Exception('Azure OpenAI API request failed: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Azure OpenAI API request failed: '.$response->body());
         }
 
         $data = $response->json();
-        
-        if (!isset($data['choices'][0]['message']['content'])) {
+
+        if (! isset($data['choices'][0]['message']['content'])) {
             throw new \Exception('Invalid response from Azure OpenAI API');
         }
 
@@ -213,8 +218,8 @@ Current locale: {$this->locale}";
     {
         $prompt = "Convert this natural language query to database filters: \"{$query}\"";
 
-        if (!empty($availableColumns)) {
-            $prompt .= "\n\nAvailable database columns: " . implode(', ', $availableColumns);
+        if (! empty($availableColumns)) {
+            $prompt .= "\n\nAvailable database columns: ".implode(', ', $availableColumns);
             $prompt .= "\nPlease use only these column names in your response.";
         }
 
@@ -241,13 +246,15 @@ Current locale: {$this->locale}";
             if (json_last_error() !== JSON_ERROR_NONE) {
                 Log::warning('Failed to parse AI response as JSON', [
                     'response' => $response,
-                    'json_error' => json_last_error_msg()
+                    'json_error' => json_last_error_msg(),
                 ]);
+
                 return [];
             }
 
-            if (!is_array($filters)) {
+            if (! is_array($filters)) {
                 Log::warning('AI response is not an array', ['response' => $response]);
+
                 return [];
             }
 
@@ -262,20 +269,21 @@ Current locale: {$this->locale}";
 
             return $validatedFilters;
         } catch (\Exception $e) {
-            Log::error('Error parsing AI response: ' . $e->getMessage(), [
-                'response' => $response
+            Log::error('Error parsing AI response: '.$e->getMessage(), [
+                'response' => $response,
             ]);
+
             return [];
         }
     }
 
     protected function validateFilter(array $filter): bool
     {
-        if (!isset($filter['column'], $filter['operator'], $filter['value'])) {
+        if (! isset($filter['column'], $filter['operator'], $filter['value'])) {
             return false;
         }
 
-        if (!in_array($filter['operator'], $this->getSupportedFilterTypes())) {
+        if (! in_array($filter['operator'], $this->getSupportedFilterTypes())) {
             return false;
         }
 
@@ -293,7 +301,8 @@ Current locale: {$this->locale}";
     protected function getCacheKey(string $query, array $availableColumns): string
     {
         $prefix = config('filament-natural-language-filter.cache.prefix', 'filament_nl_filter');
-        $key = md5($query . serialize($availableColumns) . $this->locale . 'azure');
+        $key = md5($query.serialize($availableColumns).$this->locale.'azure');
+
         return "{$prefix}:{$key}";
     }
 }

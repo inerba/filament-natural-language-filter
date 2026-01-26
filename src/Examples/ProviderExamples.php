@@ -2,10 +2,8 @@
 
 namespace EdrisaTuray\FilamentNaturalLanguageFilter\Examples;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
+use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 
 /**
  * Example usage of different AI providers
@@ -23,12 +21,12 @@ class ProviderExamples
         // OLLAMA_MODEL=llama2
 
         $processor = ProcessorFactory::createWithProvider('ollama');
-        
-        $query = "show users created after 2023";
+
+        $query = 'show users created after 2023';
         $columns = ['name', 'email', 'created_at'];
-        
+
         $filters = $processor->processQuery($query, $columns);
-        
+
         // Result: [['column' => 'created_at', 'operator' => 'date_after', 'value' => '2023-01-01']]
         return $filters;
     }
@@ -44,12 +42,12 @@ class ProviderExamples
         // LMSTUDIO_MODEL=local-model
 
         $processor = ProcessorFactory::createWithProvider('lmstudio');
-        
-        $query = "find users with email containing gmail";
+
+        $query = 'find users with email containing gmail';
         $columns = ['name', 'email', 'created_at'];
-        
+
         $filters = $processor->processQuery($query, $columns);
-        
+
         // Result: [['column' => 'email', 'operator' => 'contains', 'value' => 'gmail']]
         return $filters;
     }
@@ -66,12 +64,12 @@ class ProviderExamples
         // CUSTOM_AI_API_KEY=your-key
 
         $processor = ProcessorFactory::createWithProvider('custom');
-        
-        $query = "users with orders over $100";
+
+        $query = 'users with orders over $100';
         $columns = ['name', 'email', 'order_total'];
-        
+
         $filters = $processor->processQuery($query, $columns);
-        
+
         // Result: [['column' => 'order_total', 'operator' => 'greater_than', 'value' => '100']]
         return $filters;
     }
@@ -82,7 +80,7 @@ class ProviderExamples
     public function checkProviderStatus()
     {
         $status = ProcessorFactory::getProviderStatus();
-        
+
         foreach ($status as $provider => $info) {
             if ($info['available']) {
                 echo "✅ {$provider} is available\n";
@@ -90,7 +88,7 @@ class ProviderExamples
                 echo "❌ {$provider} is not available: {$info['error']}\n";
             }
         }
-        
+
         // Get the best available provider
         $bestProvider = ProcessorFactory::getBestAvailableProvider();
         echo "Best available provider: {$bestProvider}\n";
@@ -101,9 +99,9 @@ class ProviderExamples
      */
     public function dependencyInjectionExample(OllamaProcessor $ollamaProcessor)
     {
-        $query = "show active users";
+        $query = 'show active users';
         $columns = ['name', 'email', 'status'];
-        
+
         return $ollamaProcessor->processQuery($query, $columns);
     }
 
@@ -114,19 +112,19 @@ class ProviderExamples
     {
         $processor = ProcessorFactory::createWithProvider('ollama');
         $columns = ['name', 'email', 'created_at'];
-        
+
         $queries = [
             'English' => 'users created after 2023',
             'Spanish' => 'usuarios creados después de 2023',
             'French' => 'utilisateurs créés après 2023',
             'Arabic' => 'المستخدمون المنشأون بعد 2023',
         ];
-        
+
         $results = [];
         foreach ($queries as $language => $query) {
             $results[$language] = $processor->processQuery($query, $columns);
         }
-        
+
         return $results;
     }
 
@@ -147,7 +145,7 @@ class ProviderExamples
                             if (strlen($state) >= 3) {
                                 $processor = ProcessorFactory::create();
                                 $filters = $processor->processQuery($state, ['name', 'email', 'created_at']);
-                                
+
                                 // Apply filters to your table
                                 $this->applyFilters($filters);
                             }
@@ -157,14 +155,14 @@ class ProviderExamples
                     if (empty($data['query'])) {
                         return $query;
                     }
-                    
+
                     $processor = ProcessorFactory::create();
                     $filters = $processor->processQuery($data['query'], ['name', 'email', 'created_at']);
-                    
+
                     foreach ($filters as $filter) {
                         $this->applyFilter($query, $filter);
                     }
-                    
+
                     return $query;
                 }),
         ];
@@ -178,17 +176,18 @@ class ProviderExamples
         try {
             $processor = ProcessorFactory::createWithProvider('ollama');
             $filters = $processor->processQuery('test query', ['name']);
-            
+
             if (empty($filters)) {
                 // Fallback to another provider
                 $fallbackProcessor = ProcessorFactory::createWithProvider('openai');
                 $filters = $fallbackProcessor->processQuery('test query', ['name']);
             }
-            
+
             return $filters;
         } catch (\Exception $e) {
             // Log error and return empty filters
-            \Log::error('AI processing failed: ' . $e->getMessage());
+            \Log::error('AI processing failed: '.$e->getMessage());
+
             return [];
         }
     }

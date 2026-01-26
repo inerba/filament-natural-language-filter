@@ -3,9 +3,9 @@
 namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
 
 use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class OllamaProcessor implements NaturalLanguageProcessorInterface
 {
@@ -25,10 +25,11 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
         'date_equals',
         'date_before',
         'date_after',
-        'date_between'
+        'date_between',
     ];
 
     protected bool $isOllamaAvailable;
+
     protected string $locale;
 
     public function __construct()
@@ -39,8 +40,9 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
 
     public function processQuery(string $query, array $availableColumns = []): array
     {
-        if (!$this->checkOllamaAvailability()) {
-            Log::warning('Ollama is not available, cannot process query: ' . $query);
+        if (! $this->checkOllamaAvailability()) {
+            Log::warning('Ollama is not available, cannot process query: '.$query);
+
             return [];
         }
 
@@ -48,7 +50,8 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
         if (config('filament-natural-language-filter.cache.enabled', true)) {
             $cached = Cache::get($cacheKey);
             if ($cached !== null) {
-                Log::info('Natural Language Filter: Using cached result for query: ' . $query);
+                Log::info('Natural Language Filter: Using cached result for query: '.$query);
+
                 return $cached;
             }
         }
@@ -59,29 +62,30 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
             $response = $this->makeOllamaRequest($prompt);
             $result = $this->parseResponse($response);
 
-            if (config('filament-natural-language-filter.cache.enabled', true) && !empty($result)) {
+            if (config('filament-natural-language-filter.cache.enabled', true) && ! empty($result)) {
                 $ttl = config('filament-natural-language-filter.cache.ttl', 3600);
                 Cache::put($cacheKey, $result, $ttl);
             }
 
             Log::info('Natural Language Filter: Successfully processed query', [
                 'query' => $query,
-                'result_count' => count($result)
+                'result_count' => count($result),
             ]);
 
             return $result;
         } catch (\Exception $e) {
-            Log::error('Natural Language Filter Error: ' . $e->getMessage(), [
+            Log::error('Natural Language Filter Error: '.$e->getMessage(), [
                 'query' => $query,
-                'available_columns' => $availableColumns
+                'available_columns' => $availableColumns,
             ]);
+
             return [];
         }
     }
 
     public function canProcess(string $query): bool
     {
-        if (!$this->checkOllamaAvailability()) {
+        if (! $this->checkOllamaAvailability()) {
             return false;
         }
 
@@ -91,7 +95,7 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
 
         $length = mb_strlen($query, 'UTF-8');
 
-        return !empty($query) && $length >= $minLength && $length <= $maxLength;
+        return ! empty($query) && $length >= $minLength && $length <= $maxLength;
     }
 
     public function getSupportedFilterTypes(): array
@@ -118,22 +122,23 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
     {
         try {
             $config = config('filament-natural-language-filter.ollama');
-            
-            $hasHost = !empty($config['host']);
-            $hasModel = !empty($config['model']);
+
+            $hasHost = ! empty($config['host']);
+            $hasModel = ! empty($config['model']);
 
             $isAvailable = $hasHost && $hasModel;
 
-            if (!$isAvailable) {
+            if (! $isAvailable) {
                 Log::warning('Ollama not available', [
                     'has_host' => $hasHost,
-                    'has_model' => $hasModel
+                    'has_model' => $hasModel,
                 ]);
             }
 
             return $isAvailable;
         } catch (\Exception $e) {
-            Log::warning('Ollama availability check failed: ' . $e->getMessage());
+            Log::warning('Ollama availability check failed: '.$e->getMessage());
+
             return false;
         }
     }
@@ -143,29 +148,29 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
         $config = config('filament-natural-language-filter.ollama');
         $host = rtrim($config['host'], '/');
         $model = $config['model'];
-        
+
         $url = "{$host}/api/generate";
 
         $requestData = [
             'model' => $model,
-            'prompt' => $this->getSystemPrompt() . "\n\n" . $prompt,
+            'prompt' => $this->getSystemPrompt()."\n\n".$prompt,
             'stream' => false,
             'options' => [
                 'temperature' => $config['temperature'] ?? 0.1,
                 'num_predict' => $config['max_tokens'] ?? 500,
-            ]
+            ],
         ];
 
         $response = Http::timeout($config['timeout'] ?? 30)
             ->post($url, $requestData);
 
-        if (!$response->successful()) {
-            throw new \Exception('Ollama API request failed: ' . $response->body());
+        if (! $response->successful()) {
+            throw new \Exception('Ollama API request failed: '.$response->body());
         }
 
         $data = $response->json();
-        
-        if (!isset($data['response'])) {
+
+        if (! isset($data['response'])) {
             throw new \Exception('Invalid response from Ollama API');
         }
 
@@ -211,8 +216,8 @@ Current locale: {$this->locale}";
     {
         $prompt = "Convert this natural language query to database filters: \"{$query}\"";
 
-        if (!empty($availableColumns)) {
-            $prompt .= "\n\nAvailable database columns: " . implode(', ', $availableColumns);
+        if (! empty($availableColumns)) {
+            $prompt .= "\n\nAvailable database columns: ".implode(', ', $availableColumns);
             $prompt .= "\nPlease use only these column names in your response.";
         }
 
@@ -239,13 +244,15 @@ Current locale: {$this->locale}";
             if (json_last_error() !== JSON_ERROR_NONE) {
                 Log::warning('Failed to parse AI response as JSON', [
                     'response' => $response,
-                    'json_error' => json_last_error_msg()
+                    'json_error' => json_last_error_msg(),
                 ]);
+
                 return [];
             }
 
-            if (!is_array($filters)) {
+            if (! is_array($filters)) {
                 Log::warning('AI response is not an array', ['response' => $response]);
+
                 return [];
             }
 
@@ -260,20 +267,21 @@ Current locale: {$this->locale}";
 
             return $validatedFilters;
         } catch (\Exception $e) {
-            Log::error('Error parsing AI response: ' . $e->getMessage(), [
-                'response' => $response
+            Log::error('Error parsing AI response: '.$e->getMessage(), [
+                'response' => $response,
             ]);
+
             return [];
         }
     }
 
     protected function validateFilter(array $filter): bool
     {
-        if (!isset($filter['column'], $filter['operator'], $filter['value'])) {
+        if (! isset($filter['column'], $filter['operator'], $filter['value'])) {
             return false;
         }
 
-        if (!in_array($filter['operator'], $this->getSupportedFilterTypes())) {
+        if (! in_array($filter['operator'], $this->getSupportedFilterTypes())) {
             return false;
         }
 
@@ -291,7 +299,8 @@ Current locale: {$this->locale}";
     protected function getCacheKey(string $query, array $availableColumns): string
     {
         $prefix = config('filament-natural-language-filter.cache.prefix', 'filament_nl_filter');
-        $key = md5($query . serialize($availableColumns) . $this->locale . 'ollama');
+        $key = md5($query.serialize($availableColumns).$this->locale.'ollama');
+
         return "{$prefix}:{$key}";
     }
 }

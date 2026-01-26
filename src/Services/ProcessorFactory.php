@@ -3,12 +3,6 @@
 namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
 
 use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\AzureOpenAIProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
-use Illuminate\Support\Facades\Log;
 
 class ProcessorFactory
 {
@@ -23,20 +17,20 @@ class ProcessorFactory
     {
         switch ($provider) {
             case 'azure':
-                return new AzureOpenAIProcessor();
-            
+                return new AzureOpenAIProcessor;
+
             case 'ollama':
-                return new OllamaProcessor();
-            
+                return new OllamaProcessor;
+
             case 'lmstudio':
-                return new LMStudioProcessor();
-            
+                return new LMStudioProcessor;
+
             case 'custom':
-                return new CustomProcessor();
-            
+                return new CustomProcessor;
+
             case 'openai':
             default:
-                return new NaturalLanguageProcessor();
+                return new NaturalLanguageProcessor;
         }
     }
 
@@ -52,7 +46,7 @@ class ProcessorFactory
 
     /**
      * Get provider configuration status
-     * 
+     *
      * @return array Array of provider names and their availability status
      */
     public static function getProviderStatus(): array
@@ -65,13 +59,13 @@ class ProcessorFactory
                 $processor = self::createWithProvider($provider);
                 $status[$provider] = [
                     'available' => $processor->canProcess('test query'),
-                    'class' => get_class($processor)
+                    'class' => get_class($processor),
                 ];
             } catch (\Exception $e) {
                 $status[$provider] = [
                     'available' => false,
                     'error' => $e->getMessage(),
-                    'class' => null
+                    'class' => null,
                 ];
             }
         }
@@ -81,22 +75,22 @@ class ProcessorFactory
 
     /**
      * Get the best available provider
-     * 
+     *
      * @return string|null The name of the best available provider or null if none available
      */
     public static function getBestAvailableProvider(): ?string
     {
         $status = self::getProviderStatus();
-        
+
         // Priority order for providers
         $priority = ['azure', 'openai', 'ollama', 'lmstudio', 'custom'];
-        
+
         foreach ($priority as $provider) {
             if (isset($status[$provider]) && $status[$provider]['available']) {
                 return $provider;
             }
         }
-        
+
         return null;
     }
 }
