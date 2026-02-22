@@ -4,12 +4,13 @@ namespace Inerba\FilamentNaturalLanguageFilter\Filters;
 
 use Exception;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Tables\Filters\BaseFilter;
+use Filament\Tables\Filters\Indicator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 use Inerba\FilamentNaturalLanguageFilter\Services\EnhancedQueryBuilder;
-use Inerba\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use Inerba\FilamentNaturalLanguageFilter\Services\QuerySuggestionsService;
 use InvalidArgumentException;
 use Throwable;
@@ -21,6 +22,8 @@ class NaturalLanguageFilter extends BaseFilter
     protected array $availableRelations = [];
 
     protected array $customColumnMappings = [];
+
+    protected ?string $systemPromptAddition = null;
 
     protected ?NaturalLanguageProcessorInterface $processor = null;
 
@@ -60,6 +63,18 @@ class NaturalLanguageFilter extends BaseFilter
     public function columnMappings(array $mappings): static
     {
         $this->customColumnMappings = $mappings;
+
+        return $this;
+    }
+
+    /**
+     * Append custom instructions to the AI system prompt
+     *
+     * @param  string  $text  Additional instructions to include in the system prompt
+     */
+    public function systemPromptAddition(string $text): static
+    {
+        $this->systemPromptAddition = $text;
 
         return $this;
     }
@@ -181,6 +196,19 @@ class NaturalLanguageFilter extends BaseFilter
         }
 
         $this->schema([$textInput]);
+
+        $this->indicateUsing(function (array $data): array {
+            $query = trim($data['query'] ?? '');
+
+            if (mb_strlen($query, 'UTF-8') < 3) {
+                return [];
+            }
+
+            return [
+                Indicator::make(mb_strlen($query) > 40 ? mb_substr($query, 0, 40).'…' : $query)
+                    ->label(__('Filtro AI')),
+            ];
+        });
     }
 
     protected function getProcessor(): ?NaturalLanguageProcessorInterface
@@ -190,13 +218,6 @@ class NaturalLanguageFilter extends BaseFilter
                 $this->processor = resolve(NaturalLanguageProcessorInterface::class);
             } catch (Exception $e) {
                 Log::error('Failed to resolve NaturalLanguageProcessorInterface: '.$e->getMessage());
-                try {
-                    // Fallback to factory with default provider
-                    $this->processor = ProcessorFactory::create();
-                } catch (Exception $fallbackException) {
-                    Log::error('Failed to create fallback processor: '.$fallbackException->getMessage());
-                    $this->processor = null;
-                }
             }
         }
 
@@ -216,24 +237,47 @@ class NaturalLanguageFilter extends BaseFilter
     public function apply(Builder $query, array $data = []): Builder
     {
         if (empty($data['query']) || strlen(trim($data['query'])) < 3) {
+            session()->forget('nlf_last_query_'.md5(request()->url().'_'.$this->getName()));
+
             return $query;
         }
 
         $queryText = trim($data['query']);
+        $isQueryNew = $this->isQueryNew($queryText);
 
         try {
             $processor = $this->getProcessor();
 
             if (! $processor) {
+                if ($isQueryNew) {
+                    Notification::make()
+                        ->title(__('AI non disponibile'))
+                        ->body(__('Impossibile elaborare il filtro: il processore AI non è configurato.'))
+                        ->warning()
+                        ->send();
+                }
+
                 return $query;
             }
 
             if (! $processor->canProcess($queryText)) {
+                if ($isQueryNew) {
+                    Notification::make()
+                        ->title(__('Query non valida'))
+                        ->body(__('La query è troppo corta o troppo lunga.'))
+                        ->warning()
+                        ->send();
+                }
+
                 return $query;
             }
 
             // Process the query with AI to get filter array
-            $filters = $processor->processQuery($queryText, $this->getAvailableColumns());
+            if ($this->systemPromptAddition !== null) {
+                $processor->setAdditionalSystemPrompt($this->systemPromptAddition);
+            }
+
+            $filters = $processor->processQuery($queryText, $this->getAvailableColumns(), $this->getAvailableRelations());
 
             Log::info('NaturalLanguageFilter - AI Processing Result', [
                 'user_query' => $queryText,
@@ -243,6 +287,14 @@ class NaturalLanguageFilter extends BaseFilter
             ]);
 
             if (empty($filters)) {
+                if ($isQueryNew) {
+                    Notification::make()
+                        ->title(__('Nessun filtro trovato'))
+                        ->body(__("L'AI non è riuscita a interpretare la query come filtro."))
+                        ->warning()
+                        ->send();
+                }
+
                 return $query;
             }
 
@@ -272,6 +324,14 @@ class NaturalLanguageFilter extends BaseFilter
 
             $this->logFinalSqlQuery($finalQuery, $queryText, $filters);
 
+            if ($isQueryNew) {
+                Notification::make()
+                    ->title(__('Filtro applicato'))
+                    ->body(trans_choice(':count filtro attivo|:count filtri attivi', count($filters), ['count' => count($filters)]))
+                    ->success()
+                    ->send();
+            }
+
             return $finalQuery;
         } catch (Exception $e) {
             Log::error('Natural Language Filter Error: '.$e->getMessage(), [
@@ -279,9 +339,29 @@ class NaturalLanguageFilter extends BaseFilter
                 'available_columns' => $this->getAvailableColumns(),
                 'available_relations' => $this->getAvailableRelations(),
             ]);
+
+            if ($isQueryNew) {
+                Notification::make()
+                    ->title(__('Errore nel filtro AI'))
+                    ->body($e->getMessage())
+                    ->danger()
+                    ->send();
+            }
         }
 
         return $query;
+    }
+
+    protected function isQueryNew(string $queryText): bool
+    {
+        $sessionKey = 'nlf_last_query_'.md5(request()->url().'_'.$this->getName());
+        $isNew = session($sessionKey) !== $queryText;
+
+        if ($isNew) {
+            session([$sessionKey => $queryText]);
+        }
+
+        return $isNew;
     }
 
     protected function logFinalSqlQuery(Builder $query, string $queryText, array $filters): void
@@ -297,72 +377,6 @@ class NaturalLanguageFilter extends BaseFilter
             Log::warning('NaturalLanguageFilter - Unable to log final SQL query: '.$exception->getMessage(), [
                 'user_query' => $queryText,
             ]);
-        }
-    }
-
-    protected function applyFilter(Builder $query, array $filter): void
-    {
-        $column = $filter['column'];
-        $operator = $filter['operator'];
-        $value = $filter['value'];
-
-        switch ($operator) {
-            case 'equals':
-                $query->where($column, '=', $value);
-                break;
-            case 'not_equals':
-                $query->where($column, '!=', $value);
-                break;
-            case 'contains':
-                $query->where($column, 'LIKE', "%{$value}%");
-                break;
-            case 'starts_with':
-                $query->where($column, 'LIKE', "{$value}%");
-                break;
-            case 'ends_with':
-                $query->where($column, 'LIKE', "%{$value}");
-                break;
-            case 'greater_than':
-                $query->where($column, '>', $value);
-                break;
-            case 'less_than':
-                $query->where($column, '<', $value);
-                break;
-            case 'between':
-                if (is_array($value) && count($value) === 2) {
-                    $query->whereBetween($column, $value);
-                }
-                break;
-            case 'in':
-                if (is_array($value)) {
-                    $query->whereIn($column, $value);
-                }
-                break;
-            case 'not_in':
-                if (is_array($value)) {
-                    $query->whereNotIn($column, $value);
-                }
-                break;
-            case 'is_null':
-                $query->whereNull($column);
-                break;
-            case 'is_not_null':
-                $query->whereNotNull($column);
-                break;
-            case 'date_equals':
-                $query->whereDate($column, '=', $value);
-                break;
-            case 'date_before':
-                $query->whereDate($column, '<', $value);
-                break;
-            case 'date_after':
-                $query->whereDate($column, '>', $value);
-                break;
-            case 'date_between':
-                if (is_array($value) && count($value) === 2) {
-                    $query->whereBetween($column, $value);
-                }
-                break;
         }
     }
 }
