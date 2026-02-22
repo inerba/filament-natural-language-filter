@@ -33,4 +33,9 @@ interface NaturalLanguageProcessorInterface
      * Get current custom column mappings
      */
     public function getCustomColumnMappings(): array;
+
+    /**
+     * Set additional text to append to the system prompt
+     */
+    public function setAdditionalSystemPrompt(string $text): void;
 }
