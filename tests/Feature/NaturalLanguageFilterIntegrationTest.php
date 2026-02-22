@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Log;
 use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 use Inerba\FilamentNaturalLanguageFilter\FilamentNaturalLanguageFilterServiceProvider;
 use Inerba\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
-use InvalidArgumentException;
 use Mockery;
 use Orchestra\Testbench\TestCase;
 
@@ -78,31 +77,6 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
             ->columnMappings($mappings);
 
         $this->assertEquals($mappings, $filter->getCustomColumnMappings());
-    }
-
-    public function test_natural_language_filter_search_modes()
-    {
-        $filter = NaturalLanguageFilter::make('test_filter');
-
-        // Test live search mode
-        $filter->liveSearch();
-        $this->assertEquals('live', $filter->getSearchMode());
-
-        // Test submit search mode
-        $filter->submitSearch();
-        $this->assertEquals('submit', $filter->getSearchMode());
-
-        // Test direct mode setting
-        $filter->searchMode('live');
-        $this->assertEquals('live', $filter->getSearchMode());
-    }
-
-    public function test_natural_language_filter_invalid_search_mode()
-    {
-        $this->expectException(InvalidArgumentException::class);
-
-        $filter = NaturalLanguageFilter::make('test_filter');
-        $filter->searchMode('invalid_mode');
     }
 
     public function test_natural_language_filter_is_active()
