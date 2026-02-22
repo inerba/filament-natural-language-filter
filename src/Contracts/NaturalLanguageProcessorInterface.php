@@ -38,4 +38,14 @@ interface NaturalLanguageProcessorInterface
      * Set additional text to append to the system prompt
      */
     public function setAdditionalSystemPrompt(string $text): void;
+
+    /**
+     * Get the error/reason from the last processQuery() call that returned an empty result
+     */
+    public function getLastProcessingError(): ?string;
+
+    /**
+     * Get the raw JSON string returned by the last processQuery() API call
+     */
+    public function getLastRawResponse(): ?string;
 }

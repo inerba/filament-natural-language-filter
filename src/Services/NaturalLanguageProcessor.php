@@ -44,10 +44,53 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
 
     protected array $customColumnMappings = [];
 
+    protected ?string $lastProcessingError = null;
+
+    protected ?string $lastRawResponse = null;
+
+    /** @var object|null Cached OpenAI client instance */
+    protected ?object $openAiClient = null;
+
+    /** Cached system prompt string (invalidated when locale or additionalSystemPrompt changes) */
+    protected ?string $cachedSystemPrompt = null;
+
+    /** @var array<string,mixed>|null Cached JSON schema (immutable, built once per process) */
+    protected static ?array $cachedJsonSchema = null;
+
+    // Hot-path config values — read once in constructor to avoid repeated config() calls
+    protected bool $cacheEnabled;
+
+    protected int $cacheTtl;
+
+    protected string $cachePrefix;
+
+    protected string $model;
+
+    protected int $maxOutputTokens;
+
+    protected ?float $temperature;
+
     public function __construct()
     {
         $this->isOpenAiAvailable = $this->checkOpenAiAvailability();
         $this->locale = app()->getLocale();
+
+        // Cache hot-path config values once
+        $this->cacheEnabled = (bool) config('filament-natural-language-filter.cache.enabled', true);
+        $this->cacheTtl = (int) config('filament-natural-language-filter.cache.ttl', 3600);
+        $this->cachePrefix = (string) config('filament-natural-language-filter.cache.prefix', 'filament_nl_filter');
+        $this->model = (string) config('filament-natural-language-filter.model', 'gpt-4o-mini');
+        $this->maxOutputTokens = (int) config('filament-natural-language-filter.openai.max_output_tokens', 1024);
+        $temperature = config('filament-natural-language-filter.openai.temperature');
+        $this->temperature = $temperature !== null ? (float) $temperature : null;
+
+        if ($this->isOpenAiAvailable) {
+            try {
+                $this->openAiClient = resolve('openai');
+            } catch (Throwable) {
+                $this->isOpenAiAvailable = false;
+            }
+        }
     }
 
     public function processQuery(string $query, array $availableColumns = [], array $availableRelations = []): array
@@ -59,7 +102,7 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
         }
 
         $cacheKey = $this->getCacheKey($query, $availableColumns, $availableRelations);
-        if (config('filament-natural-language-filter.cache.enabled', true)) {
+        if ($this->cacheEnabled) {
             $cached = Cache::get($cacheKey);
             if ($cached !== null) {
                 Log::info('Natural Language Filter: Using cached result for query: '.$query);
@@ -68,43 +111,67 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
             }
         }
 
+        $this->lastProcessingError = null;
+        $this->lastRawResponse = null;
+
         try {
             $prompt = $this->buildPrompt($query, $availableColumns, $availableRelations);
 
-            $openAI = resolve('openai');
-
-            $maxTokens = config('filament-natural-language-filter.openai.max_output_tokens', 500);
-
             $params = [
-                'model' => config('filament-natural-language-filter.model', 'gpt-4o-mini'),
+                'model' => $this->model,
                 'instructions' => $this->getSystemPrompt(),
                 'input' => $prompt,
-                'max_output_tokens' => $maxTokens,
+                'max_output_tokens' => $this->maxOutputTokens,
                 'text' => [
                     'format' => $this->getJsonSchema(),
                 ],
             ];
 
-            $temperature = config('filament-natural-language-filter.openai.temperature');
-            if ($temperature !== null) {
-                $params['temperature'] = $temperature;
+            if ($this->temperature !== null) {
+                $params['temperature'] = $this->temperature;
             }
 
-            $response = $openAI->responses()->create($params);
+            $response = $this->openAiClient->responses()->create($params);
 
             if ($response->status !== 'completed') {
+                // Check incomplete_details.reason (e.g. 'max_output_tokens') first
+                $incompleteReason = null;
+                if (isset($response->incompleteDetails) && is_object($response->incompleteDetails)) {
+                    $incompleteReason = property_exists($response->incompleteDetails, 'reason')
+                        ? $response->incompleteDetails->reason
+                        : null;
+                }
+
+                $errorDetail = $incompleteReason
+                    ?? (is_object($response->error ?? null)
+                        ? (property_exists($response->error, 'message') ? $response->error->message : json_encode($response->error))
+                        : (string) ($response->error ?? null));
+
+                $humanReason = match ($errorDetail) {
+                    'max_output_tokens' => 'La risposta è stata troncata: aumentare FILAMENT_NL_FILTER_MAX_TOKENS nel .env (attuale: '.config('filament-natural-language-filter.openai.max_output_tokens').' token).',
+                    'content_filter' => 'La query è stata bloccata dai filtri di sicurezza di OpenAI.',
+                    default => $errorDetail ?? $response->status,
+                };
+
+                $this->lastProcessingError = $humanReason;
+
                 Log::warning('OpenAI Responses API returned non-completed status', [
                     'query' => $query,
                     'status' => $response->status,
+                    'incomplete_reason' => $incompleteReason,
                     'error' => $response->error,
+                    'human_reason' => $humanReason,
                 ]);
 
                 return [];
             }
 
             $content = trim((string) ($response->outputText ?? ''));
+            $this->lastRawResponse = $content ?: null;
 
             if ($content === '') {
+                $this->lastProcessingError = 'OpenAI ha restituito un output vuoto (status: '.$response->status.')';
+
                 Log::warning('OpenAI returned empty output', [
                     'query' => $query,
                     'status' => $response->status,
@@ -115,9 +182,8 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
 
             $result = $this->parseResponse($content);
 
-            if (config('filament-natural-language-filter.cache.enabled', true) && ! empty($result)) {
-                $ttl = config('filament-natural-language-filter.cache.ttl', 3600);
-                Cache::put($cacheKey, $result, $ttl);
+            if ($this->cacheEnabled && ! empty($result)) {
+                Cache::put($cacheKey, $result, $this->cacheTtl);
             }
 
             Log::info('Natural Language Filter: Successfully processed query', [
@@ -125,8 +191,14 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
                 'result_count' => count($result),
             ]);
 
+            if (empty($result)) {
+                $this->lastProcessingError = 'La risposta AI non conteneva filtri validi per la query fornita.';
+            }
+
             return $result;
         } catch (Throwable $e) {
+            $this->lastProcessingError = $e->getMessage();
+
             Log::error('Natural Language Filter Error: '.$e->getMessage(), [
                 'query' => $query,
                 'available_columns' => $availableColumns,
@@ -134,6 +206,16 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
 
             return [];
         }
+    }
+
+    public function getLastProcessingError(): ?string
+    {
+        return $this->lastProcessingError;
+    }
+
+    public function getLastRawResponse(): ?string
+    {
+        return $this->lastRawResponse;
     }
 
     public function canProcess(string $query): bool
@@ -155,11 +237,13 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
     public function setLocale(string $locale): void
     {
         $this->locale = $locale;
+        $this->cachedSystemPrompt = null;
     }
 
     public function setAdditionalSystemPrompt(string $text): void
     {
         $this->additionalSystemPrompt = $text;
+        $this->cachedSystemPrompt = null;
     }
 
     public function setCustomColumnMappings(array $mappings): void
@@ -199,99 +283,65 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
 
     protected function getSystemPrompt(): string
     {
-        $supportedOperators = implode(', ', $this->getSupportedFilterTypes());
+        if ($this->cachedSystemPrompt !== null) {
+            return $this->cachedSystemPrompt;
+        }
 
-        return "You are a database query assistant that converts natural language queries into structured filter arrays.
+        $operators = implode(', ', $this->getSupportedFilterTypes());
 
-IMPORTANT RULES:
-1. Return ONLY valid JSON matching the required schema
-2. Each filter must have these keys: 'column', 'operator', 'value' (and 'relation' for relationship filters)
-3. Use only these operators: {$supportedOperators}
-4. For date operations, convert relative dates (yesterday, last week, etc.) to actual dates
-5. Be flexible with column name matching (e.g., 'name' could match 'full_name', 'user_name', etc.)
-6. Understand queries in ANY language and convert them appropriately
-7. If the query is unclear or cannot be processed, return: {\"filters\": []}
-8. Output MUST match this top-level shape: {\"filters\": [ ... ]}
+        $prompt = <<<PROMPT
+Convert natural language queries (any language) into structured database filters matching the provided JSON schema.
 
-RELATIONSHIP FILTERING:
-- When a query references relationships (e.g., 'role', 'ruolo', 'category', 'orders'):
-  * Use a relationship_filter with 'relation', 'column', 'operator', 'value' fields
-  * Use 'has_relation' operator to filter by relationship attributes
-  * The 'column' field should be the relationship's column (e.g., 'name')
-  * Example: [{\"relation\": \"roles\", \"column\": \"name\", \"operator\": \"has_relation\", \"value\": \"admin\"}]
+Operators: {$operators}
 
-BOOLEAN LOGIC (CRITICAL):
-- When query contains 'OR', 'o', 'ou', 'oder', '\xe6\x88\x96', '\xd8\xa3\xd9\x88' (or equivalent in any language):
-  * Use a boolean_filter: {\"operator\": \"or\", \"conditions\": [array of filters]}
-  * Each condition inside is a separate filter that will be OR'd together
-  * Example: 'name contains ing OR name is nicola' - [{\"operator\": \"or\", \"conditions\": [{\"column\": \"name\", \"operator\": \"contains\", \"value\": \"ing\"}, {\"column\": \"name\", \"operator\": \"contains\", \"value\": \"nicola\"}]}]
+Rules:
+- Multiple top-level filters are implicitly ANDed.
+- Relative dates (today, yesterday, last year…) → ISO date (YYYY-MM-DD).
+- Boolean words in any language (o/ou/oder/or → or; e/et/und/and → and; non/nicht/not → not) → boolean_filter.
+- Relationship queries ("with role admin", "con ruolo editor") → relationship_filter with has_relation operator.
+- OR + AND in the same query: put the OR group as one top-level boolean_filter, each AND condition as separate top-level filters.
+- If the query cannot be interpreted, return {"filters": []}.
+Locale: {$this->locale}
+PROMPT;
 
-- When query contains 'AND', 'e', 'et', 'und', '\xe5\x92\x8c', '\xd9\x88' (and equivalent):
-  * Use a boolean_filter: {\"operator\": \"and\", \"conditions\": [array of filters]}
-  * Example: 'name contains ing AND email ends with .com' - [{\"operator\": \"and\", \"conditions\": [{\"column\": \"name\", \"operator\": \"contains\", \"value\": \"ing\"}, {\"column\": \"email\", \"operator\": \"ends_with\", \"value\": \".com\"}]}]
+        if ($this->additionalSystemPrompt !== null) {
+            $prompt .= "\n\n".$this->additionalSystemPrompt;
+        }
 
-- When query contains 'NOT', 'non', 'ne pas', 'nicht', '\xe4\xb8\x8d', '\xd9\x84\xd9\x8a\xd8\xb3':
-  * Use a boolean_filter: {\"operator\": \"not\", \"conditions\": [array of filters]}
-  * Example: 'NOT name is john' - [{\"operator\": \"not\", \"conditions\": [{\"column\": \"name\", \"operator\": \"equals\", \"value\": \"john\"}]}]
+        $this->cachedSystemPrompt = $prompt;
 
-COMBINING OR WITH AND (CRITICAL):
-- Top-level array items are ALWAYS combined with AND automatically.
-- When a query has OR conditions alongside AND conditions, use SEPARATE top-level filters:
-  * OR group -> one top-level boolean_filter with {\"operator\": \"or\", \"conditions\": [...]}
-  * Each AND condition -> its own separate top-level standard_filter
-- NEVER wrap everything in a flat AND filter when OR conditions are present.
-- Example: 'name is antonio OR carlo OR maria AND role is guest' - [{\"operator\": \"or\", \"conditions\": [{\"column\": \"name\", \"operator\": \"contains\", \"value\": \"antonio\"}, {\"column\": \"name\", \"operator\": \"contains\", \"value\": \"carlo\"}, {\"column\": \"name\", \"operator\": \"contains\", \"value\": \"maria\"}]}, {\"relation\": \"roles\", \"column\": \"name\", \"operator\": \"has_relation\", \"value\": \"guest\"}]
-
-EXAMPLES (Multiple Languages):
-- English: 'users created after 2023' - [{\"column\": \"created_at\", \"operator\": \"date_after\", \"value\": \"2023-01-01\"}]
-- English: 'users with role admin' - [{\"relation\": \"roles\", \"column\": \"name\", \"operator\": \"has_relation\", \"value\": \"admin\"}]
-- Italian: 'utenti con ruolo editor' - [{\"relation\": \"roles\", \"column\": \"name\", \"operator\": \"has_relation\", \"value\": \"editor\"}]
-- Italian: 'utenti che nel nome hanno ing o si chiamano nicola' - [{\"operator\": \"or\", \"conditions\": [{\"column\": \"name\", \"operator\": \"contains\", \"value\": \"ing\"}, {\"column\": \"name\", \"operator\": \"contains\", \"value\": \"nicola\"}]}]
-
-LANGUAGE HANDLING:
-- Automatically detect and understand the input language
-- Map language-specific keywords to operators (contains, equals, between, etc.)
-- Preserve original values (names, text) in their original language
-- Handle mixed-language queries naturally
-- CRITICAL: Recognize OR/AND keywords in all languages
-
-Current locale: {$this->locale}".(($this->additionalSystemPrompt !== null) ? "\n\nADDITIONAL INSTRUCTIONS:\n{$this->additionalSystemPrompt}" : '');
+        return $prompt;
     }
 
     protected function buildPrompt(string $query, array $availableColumns, array $availableRelations = []): string
     {
-        $prompt = "Convert this natural language query to database filters: \"{$query}\"";
+        $lines = ["Query: \"{$query}\""];
 
         if (! empty($availableColumns)) {
-            $prompt .= "\n\nAvailable database columns: ".implode(', ', $availableColumns);
-            $prompt .= "\nPlease use only these column names in your response.";
+            $lines[] = 'Columns: '.implode(', ', $availableColumns);
         }
 
         if (! empty($availableRelations)) {
-            $prompt .= "\n\nAvailable relationships: ".implode(', ', $availableRelations);
-            $prompt .= "\n\nWhen filtering by relationships (e.g., 'users with role admin', 'utenti con ruolo editor'):";
-            $prompt .= "\n- Use 'relation' field to specify the relationship name (e.g., 'roles')";
-            $prompt .= "\n- Use 'column' field to specify the relationship column (e.g., 'name')";
-            $prompt .= "\n- Use 'operator' field with 'has_relation' to check relationship existence with a value";
-            $prompt .= "\n- Example: [{\"relation\": \"roles\", \"column\": \"name\", \"operator\": \"has_relation\", \"value\": \"admin\"}]";
-            $prompt .= "\n- For queries like 'role admin' or 'ruolo editor', map to the appropriate relationship (roles) automatically";
+            $lines[] = 'Relations: '.implode(', ', $availableRelations);
         }
 
-        $prompt .= "\n\nNote: The query may be in any language. Please understand the intent and map keywords to the appropriate operators automatically.";
-        $prompt .= "\n\nReturn an object with this exact top-level key: {\"filters\": [...]}";
-
-        return $prompt;
+        return implode("\n", $lines);
     }
 
     /**
      * Build the strict JSON schema for structured output.
      *
      * Uses $defs + $ref for recursion so boolean_filter conditions can nest any filter type.
+     * Cached as a static property: the schema is immutable across the entire request lifecycle.
      *
      * @return array<string, mixed>
      */
     protected function getJsonSchema(): array
     {
+        if (static::$cachedJsonSchema !== null) {
+            return static::$cachedJsonSchema;
+        }
+
         return [
             'type' => 'json_schema',
             'name' => 'natural_language_filters',
@@ -369,6 +419,10 @@ Current locale: {$this->locale}".(($this->additionalSystemPrompt !== null) ? "\n
                 ],
             ],
         ];
+
+        static::$cachedJsonSchema = $schema;
+
+        return static::$cachedJsonSchema;
     }
 
     protected function parseResponse(string $response): array
@@ -470,9 +524,8 @@ Current locale: {$this->locale}".(($this->additionalSystemPrompt !== null) ? "\n
 
     protected function getCacheKey(string $query, array $availableColumns, array $availableRelations = []): string
     {
-        $prefix = config('filament-natural-language-filter.cache.prefix', 'filament_nl_filter');
         $key = md5($query.serialize($availableColumns).serialize($availableRelations).$this->locale.(string) $this->additionalSystemPrompt);
 
-        return "{$prefix}:{$key}";
+        return "{$this->cachePrefix}:{$key}";
     }
 }

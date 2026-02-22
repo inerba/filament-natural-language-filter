@@ -31,6 +31,8 @@ class NaturalLanguageFilter extends BaseFilter
 
     protected string $searchMode = 'submit';
 
+    protected bool $debugMode = false;
+
     public static function make(?string $name = 'natural_language'): static
     {
         return parent::make($name);
@@ -98,6 +100,13 @@ class NaturalLanguageFilter extends BaseFilter
     public function submitSearch(): static
     {
         return $this->searchMode('submit');
+    }
+
+    public function debug(bool $enabled = true): static
+    {
+        $this->debugMode = $enabled;
+
+        return $this;
     }
 
     public function getSearchMode(): string
@@ -277,7 +286,9 @@ class NaturalLanguageFilter extends BaseFilter
                 $processor->setAdditionalSystemPrompt($this->systemPromptAddition);
             }
 
+            $apiStart = microtime(true);
             $filters = $processor->processQuery($queryText, $this->getAvailableColumns(), $this->getAvailableRelations());
+            $apiElapsedMs = (int) round((microtime(true) - $apiStart) * 1000);
 
             Log::info('NaturalLanguageFilter - AI Processing Result', [
                 'user_query' => $queryText,
@@ -288,9 +299,13 @@ class NaturalLanguageFilter extends BaseFilter
 
             if (empty($filters)) {
                 if ($isQueryNew) {
+                    $reason = method_exists($processor, 'getLastProcessingError')
+                        ? $processor->getLastProcessingError()
+                        : null;
+
                     Notification::make()
                         ->title(__('Nessun filtro trovato'))
-                        ->body(__("L'AI non è riuscita a interpretare la query come filtro."))
+                        ->body($reason ?? __("L'AI non è riuscita a interpretare la query come filtro."))
                         ->warning()
                         ->send();
                 }
@@ -324,6 +339,11 @@ class NaturalLanguageFilter extends BaseFilter
 
             $this->logFinalSqlQuery($finalQuery, $queryText, $filters);
 
+            if ($this->debugMode && $isQueryNew) {
+                $rawJson = method_exists($processor, 'getLastRawResponse') ? $processor->getLastRawResponse() : null;
+                $this->sendDebugNotification($finalQuery, $queryText, $filters, $apiElapsedMs, $rawJson);
+            }
+
             if ($isQueryNew) {
                 Notification::make()
                     ->title(__('Filtro applicato'))
@@ -350,6 +370,62 @@ class NaturalLanguageFilter extends BaseFilter
         }
 
         return $query;
+    }
+
+    protected function sendDebugNotification(Builder $finalQuery, string $queryText, array $filters, int $apiElapsedMs, ?string $rawJson = null): void
+    {
+        try {
+            $sql = $finalQuery->toSql();
+            $bindings = $finalQuery->getBindings();
+
+            // Replace ? placeholders with actual binding values for readability
+            $boundSql = preg_replace_callback('/\?/', function () use (&$bindings): string {
+                $value = array_shift($bindings);
+
+                return is_string($value) ? '"'.$value.'"' : (string) ($value ?? 'NULL');
+            }, $sql);
+
+            $filterLines = array_map(function (array $filter, int $i): string {
+                $parts = array_map(
+                    fn ($k, $v) => $k.': '.(is_array($v) ? '['.implode(', ', $v).']' : $v),
+                    array_keys($filter),
+                    $filter
+                );
+
+                return ($i + 1).') '.implode(' | ', $parts);
+            }, $filters, array_keys($filters));
+
+            $prettyJson = $rawJson
+                ? json_encode(json_decode($rawJson, true), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
+                : null;
+
+            $lines = [
+                '**Query:** '.$queryText,
+                '**API:** '.$apiElapsedMs.' ms',
+                '**Filtri generati:** '.count($filters),
+                '---',
+                implode("\n", $filterLines),
+                '---',
+                '**SQL:** `'.$boundSql.'`',
+            ];
+
+            if ($prettyJson !== null) {
+                $lines[] = '---';
+                $lines[] = '**JSON grezzo:**';
+                $lines[] = '```json';
+                $lines[] = $prettyJson;
+                $lines[] = '```';
+            }
+
+            Notification::make()
+                ->title('[DEBUG] NaturalLanguageFilter')
+                ->body(str(implode("\n", $lines))->markdown()->toHtmlString())
+                ->info()
+                ->persistent()
+                ->send();
+        } catch (Throwable $e) {
+            Log::warning('NaturalLanguageFilter debug notification failed: '.$e->getMessage());
+        }
     }
 
     protected function isQueryNew(string $queryText): bool

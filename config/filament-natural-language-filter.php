@@ -16,7 +16,7 @@ return [
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
         'organization' => env('OPENAI_ORGANIZATION'),
-        'max_output_tokens' => env('FILAMENT_NL_FILTER_MAX_TOKENS', 500),
+        'max_output_tokens' => env('FILAMENT_NL_FILTER_MAX_TOKENS', 1024),
         'temperature' => env('FILAMENT_NL_FILTER_TEMPERATURE'), // null = use model default (required for o1/o3/gpt-5 series)
     ],
 
