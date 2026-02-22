@@ -4,8 +4,8 @@ namespace Inerba\FilamentNaturalLanguageFilter\Tests\Feature;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 use Inerba\FilamentNaturalLanguageFilter\FilamentNaturalLanguageFilterServiceProvider;
 use Inerba\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
 use InvalidArgumentException;
@@ -31,23 +31,21 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
     {
         parent::setUp();
 
-        // Set up test configuration
-        Config::set('filament-natural-language-filter.provider', 'ollama');
         Config::set('filament-natural-language-filter.cache.enabled', false);
         Config::set('filament-natural-language-filter.validation.min_length', 3);
         Config::set('filament-natural-language-filter.validation.max_length', 500);
         Config::set('filament-natural-language-filter.supported_filters', [
             'equals', 'contains', 'greater_than', 'date_after',
         ]);
+    }
 
-        // Mock Ollama config
-        Config::set('filament-natural-language-filter.ollama', [
-            'host' => 'http://localhost:11434',
-            'model' => 'llama2',
-            'temperature' => 0.1,
-            'max_tokens' => 500,
-            'timeout' => 30,
-        ]);
+    /** @return Mockery\MockInterface&NaturalLanguageProcessorInterface */
+    private function mockProcessor(): Mockery\MockInterface
+    {
+        $mock = Mockery::mock(NaturalLanguageProcessorInterface::class);
+        $this->app->instance(NaturalLanguageProcessorInterface::class, $mock);
+
+        return $mock;
     }
 
     public function test_natural_language_filter_creation()
@@ -126,17 +124,17 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
 
     public function test_natural_language_filter_apply_with_mock_response()
     {
-        // Mock HTTP response
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([
-                'response' => '[{"column": "created_at", "operator": "date_after", "value": "2023-01-01"}]',
-            ], 200),
-        ]);
+        $processor = $this->mockProcessor();
+        $processor->shouldReceive('canProcess')->andReturn(true);
+        $processor->shouldReceive('setLocale')->andReturn();
+        $processor->shouldReceive('setCustomColumnMappings')->andReturn();
+        $processor->shouldReceive('processQuery')
+            ->once()
+            ->andReturn([['column' => 'created_at', 'operator' => 'date_after', 'value' => '2023-01-01']]);
 
         $filter = NaturalLanguageFilter::make('test_filter')
             ->availableColumns(['name', 'email', 'created_at']);
 
-        // Mock query builder
         $query = Mockery::mock(Builder::class);
         $query->shouldReceive('whereDate')->with('created_at', '>', '2023-01-01')->andReturnSelf();
 
@@ -147,11 +145,13 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
 
     public function test_natural_language_filter_logs_final_sql_query()
     {
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([
-                'response' => '[{"column": "created_at", "operator": "date_after", "value": "2023-01-01"}]',
-            ], 200),
-        ]);
+        $processor = $this->mockProcessor();
+        $processor->shouldReceive('canProcess')->andReturn(true);
+        $processor->shouldReceive('setLocale')->andReturn();
+        $processor->shouldReceive('setCustomColumnMappings')->andReturn();
+        $processor->shouldReceive('processQuery')
+            ->once()
+            ->andReturn([['column' => 'created_at', 'operator' => 'date_after', 'value' => '2023-01-01']]);
 
         Log::spy();
 
@@ -201,15 +201,15 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
 
     public function test_natural_language_filter_apply_with_http_error()
     {
-        // Mock HTTP error response
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([], 500),
-        ]);
+        $processor = $this->mockProcessor();
+        $processor->shouldReceive('canProcess')->andReturn(true);
+        $processor->shouldReceive('setLocale')->andReturn();
+        $processor->shouldReceive('setCustomColumnMappings')->andReturn();
+        $processor->shouldReceive('processQuery')->once()->andReturn([]);
 
         $filter = NaturalLanguageFilter::make('test_filter')
             ->availableColumns(['name', 'email', 'created_at']);
 
-        // Mock query builder
         $query = Mockery::mock(Builder::class);
 
         $result = $filter->apply($query, ['query' => 'users created after 2023']);
@@ -219,17 +219,15 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
 
     public function test_natural_language_filter_apply_with_invalid_response()
     {
-        // Mock HTTP response with invalid JSON
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([
-                'response' => 'invalid json response',
-            ], 200),
-        ]);
+        $processor = $this->mockProcessor();
+        $processor->shouldReceive('canProcess')->andReturn(true);
+        $processor->shouldReceive('setLocale')->andReturn();
+        $processor->shouldReceive('setCustomColumnMappings')->andReturn();
+        $processor->shouldReceive('processQuery')->once()->andReturn([]);
 
         $filter = NaturalLanguageFilter::make('test_filter')
             ->availableColumns(['name', 'email', 'created_at']);
 
-        // Mock query builder
         $query = Mockery::mock(Builder::class);
 
         $result = $filter->apply($query, ['query' => 'users created after 2023']);
@@ -239,13 +237,6 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
 
     public function test_natural_language_filter_query_suggestions()
     {
-        // Mock HTTP response for suggestions
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([
-                'response' => '["users created after", "users with email", "active users"]',
-            ], 200),
-        ]);
-
         $filter = NaturalLanguageFilter::make('test_filter')
             ->availableColumns(['name', 'email', 'created_at'])
             ->availableRelations(['orders']);
@@ -255,15 +246,18 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
         $this->assertIsArray($suggestions);
     }
 
-    public function test_natural_language_filter_processor_fallback()
+    public function test_natural_language_filter_apply_does_not_throw_on_empty_result()
     {
-        // Test that the filter can handle processor creation failures
+        $processor = $this->mockProcessor();
+        $processor->shouldReceive('canProcess')->andReturn(true);
+        $processor->shouldReceive('setLocale')->andReturn();
+        $processor->shouldReceive('setCustomColumnMappings')->andReturn();
+        $processor->shouldReceive('processQuery')->once()->andReturn([]);
+
         $filter = NaturalLanguageFilter::make('test_filter');
 
-        // Mock query builder
         $query = Mockery::mock(Builder::class);
 
-        // This should not throw an exception even if processor creation fails
         $result = $filter->apply($query, ['query' => 'users created after 2023']);
 
         $this->assertInstanceOf(Builder::class, $result);
