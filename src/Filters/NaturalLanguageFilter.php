@@ -5,7 +5,6 @@ namespace Inerba\FilamentNaturalLanguageFilter\Filters;
 use Exception;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Filters\BaseFilter;
 use Filament\Tables\Filters\Indicator;
 use Illuminate\Database\Eloquent\Builder;
@@ -147,12 +146,13 @@ class NaturalLanguageFilter extends BaseFilter
 
         $textInput = TextInput::make('query')
             ->label('Filtro AI')
-            ->prefixIcon(Heroicon::OutlinedSparkles)
-            ->prefixIconColor('primary')
+            ->prefixIcon('heroicon-m-sparkles', true)
+            // ->prefixIconColor('primary')
             ->placeholder($placeholder)
             ->extraInputAttributes([
                 'autocomplete' => 'off',
                 'spellcheck' => 'false',
+                'wire:keydown.enter.prevent' => 'applyTableFilters',
                 ...$autoDetectDirection ? ['dir' => 'auto', 'lang' => 'auto'] : [],
             ]);
 
@@ -207,20 +207,12 @@ class NaturalLanguageFilter extends BaseFilter
         ];
 
         $jsArray = "['".implode("', '", $phrases)."']";
-        $xData = "{p: {$jsArray}, i: 0, loading: false, init() {"
-            .' setInterval(() => { this.i = (this.i + 1) % this.p.length }, 1200);'
-            ." if (typeof Livewire !== 'undefined') {"
-            ."  Livewire.hook('commit', ({ succeed }) => {"
-            .'   this.loading = true;'
-            .'   succeed(() => { queueMicrotask(() => { this.loading = false; }); });'
-            .'  });'
-            .' }'
-            .'}}';
+        $xData = "{p: {$jsArray}, i: 0, init() { setInterval(() => { this.i = (this.i + 1) % this.p.length }, 1200) }}";
 
         return new HtmlString(
             '<span x-data="'.$xData.'">'
-            .'<span x-show="!loading">'.e($staticText).'</span>'
-            .'<span x-show="loading" x-text="p[i]" class="text-primary-600 dark:text-primary-400 italic"></span>'
+            .'<span wire:loading.remove wire:target="applyTableFilters">'.e($staticText).'</span>'
+            .'<span wire:loading wire:target="applyTableFilters" x-text="p[i]" class="text-primary-600 dark:text-primary-400 italic animate-pulse"></span>'
             .'</span>'
         );
     }
