@@ -3,12 +3,9 @@
 namespace Inerba\FilamentNaturalLanguageFilter\Tests\Feature;
 
 use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\Http;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 use Inerba\FilamentNaturalLanguageFilter\FilamentNaturalLanguageFilterServiceProvider;
-use Inerba\FilamentNaturalLanguageFilter\Services\CustomProcessor;
-use Inerba\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
-use Inerba\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use Inerba\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
+use Inerba\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
 use Mockery;
 use Orchestra\Testbench\TestCase;
 
@@ -31,61 +28,44 @@ class NaturalLanguageFilterTest extends TestCase
     {
         parent::setUp();
 
-        // Set up test configuration
-        Config::set('filament-natural-language-filter.provider', 'ollama');
         Config::set('filament-natural-language-filter.cache.enabled', false);
+        Config::set('filament-natural-language-filter.openai.api_key', 'test-key');
         Config::set('filament-natural-language-filter.validation.min_length', 3);
         Config::set('filament-natural-language-filter.validation.max_length', 500);
         Config::set('filament-natural-language-filter.supported_filters', [
             'equals', 'contains', 'greater_than', 'date_after',
         ]);
-
-        // Mock Ollama config
-        Config::set('filament-natural-language-filter.ollama', [
-            'host' => 'http://localhost:11434',
-            'model' => 'llama2',
-            'temperature' => 0.1,
-            'max_tokens' => 500,
-            'timeout' => 30,
-        ]);
     }
 
-    public function test_service_provider_registers_correctly()
+    public function test_service_provider_registers_interface_binding(): void
     {
-        $this->assertTrue($this->app->bound('Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface'));
+        $this->assertTrue($this->app->bound(NaturalLanguageProcessorInterface::class));
     }
 
-    public function test_processor_factory_creates_correct_processor()
+    public function test_service_provider_resolves_to_natural_language_processor(): void
     {
-        $processor = ProcessorFactory::create();
-        $this->assertInstanceOf(OllamaProcessor::class, $processor);
+        $processor = $this->app->make(NaturalLanguageProcessorInterface::class);
+        $this->assertInstanceOf(NaturalLanguageProcessor::class, $processor);
     }
 
-    public function test_processor_factory_with_different_providers()
+    public function test_processor_processes_query_with_mocked_responses_api(): void
     {
-        // Test Ollama
-        $ollamaProcessor = ProcessorFactory::createWithProvider('ollama');
-        $this->assertInstanceOf(OllamaProcessor::class, $ollamaProcessor);
+        $responsesMock = Mockery::mock();
+        $responsesMock
+            ->shouldReceive('create')
+            ->once()
+            ->andReturn((object) [
+                'status' => 'completed',
+                'outputText' => '{"filters":[{"column":"created_at","operator":"date_after","value":"2023-01-01"}]}',
+                'error' => null,
+            ]);
 
-        // Test LM Studio
-        $lmstudioProcessor = ProcessorFactory::createWithProvider('lmstudio');
-        $this->assertInstanceOf(LMStudioProcessor::class, $lmstudioProcessor);
+        $openAiMock = Mockery::mock();
+        $openAiMock->shouldReceive('responses')->once()->andReturn($responsesMock);
 
-        // Test Custom
-        $customProcessor = ProcessorFactory::createWithProvider('custom');
-        $this->assertInstanceOf(CustomProcessor::class, $customProcessor);
-    }
+        $this->app->instance('openai', $openAiMock);
 
-    public function test_processor_can_process_query_with_mock_response()
-    {
-        // Mock HTTP response
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([
-                'response' => '[{"column": "created_at", "operator": "date_after", "value": "2023-01-01"}]',
-            ], 200),
-        ]);
-
-        $processor = ProcessorFactory::create();
+        $processor = $this->app->make(NaturalLanguageProcessorInterface::class);
         $result = $processor->processQuery('users created after 2023', ['name', 'created_at']);
 
         $this->assertIsArray($result);
@@ -95,93 +75,45 @@ class NaturalLanguageFilterTest extends TestCase
         $this->assertEquals('2023-01-01', $result[0]['value']);
     }
 
-    public function test_processor_handles_multiple_filters()
+    public function test_processor_returns_empty_array_on_incomplete_status(): void
     {
-        // Mock HTTP response with multiple filters
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([
-                'response' => '[{"column": "name", "operator": "contains", "value": "john"}, {"column": "email", "operator": "contains", "value": "gmail"}]',
-            ], 200),
-        ]);
+        $responsesMock = Mockery::mock();
+        $responsesMock
+            ->shouldReceive('create')
+            ->once()
+            ->andReturn((object) [
+                'status' => 'failed',
+                'outputText' => '',
+                'error' => 'content_filter',
+            ]);
 
-        $processor = ProcessorFactory::create();
-        $result = $processor->processQuery('users named john with gmail email', ['name', 'email']);
+        $openAiMock = Mockery::mock();
+        $openAiMock->shouldReceive('responses')->once()->andReturn($responsesMock);
 
-        $this->assertIsArray($result);
-        $this->assertCount(2, $result);
+        $this->app->instance('openai', $openAiMock);
 
-        $this->assertEquals('name', $result[0]['column']);
-        $this->assertEquals('contains', $result[0]['operator']);
-        $this->assertEquals('john', $result[0]['value']);
-
-        $this->assertEquals('email', $result[1]['column']);
-        $this->assertEquals('contains', $result[1]['operator']);
-        $this->assertEquals('gmail', $result[1]['value']);
-    }
-
-    public function test_processor_handles_empty_response()
-    {
-        // Mock HTTP response with empty result
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([
-                'response' => '[]',
-            ], 200),
-        ]);
-
-        $processor = ProcessorFactory::create();
-        $result = $processor->processQuery('users created after 2023', ['name', 'created_at']);
+        $processor = $this->app->make(NaturalLanguageProcessorInterface::class);
+        $result = $processor->processQuery('test query', ['name']);
 
         $this->assertIsArray($result);
         $this->assertEmpty($result);
     }
 
-    public function test_processor_handles_invalid_json_response()
+    public function test_processor_validation(): void
     {
-        // Mock HTTP response with invalid JSON
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([
-                'response' => 'invalid json response',
-            ], 200),
-        ]);
+        $processor = $this->app->make(NaturalLanguageProcessorInterface::class);
 
-        $processor = ProcessorFactory::create();
-        $result = $processor->processQuery('users created after 2023', ['name', 'created_at']);
-
-        $this->assertIsArray($result);
-        $this->assertEmpty($result);
-    }
-
-    public function test_processor_handles_http_error()
-    {
-        // Mock HTTP error response
-        Http::fake([
-            'localhost:11434/api/generate' => Http::response([], 500),
-        ]);
-
-        $processor = ProcessorFactory::create();
-        $result = $processor->processQuery('users created after 2023', ['name', 'created_at']);
-
-        $this->assertIsArray($result);
-        $this->assertEmpty($result);
-    }
-
-    public function test_processor_validation()
-    {
-        $processor = ProcessorFactory::create();
-
-        // Valid queries
         $this->assertTrue($processor->canProcess('users created after 2023'));
         $this->assertTrue($processor->canProcess('find users with email containing gmail'));
 
-        // Invalid queries
         $this->assertFalse($processor->canProcess('ab')); // Too short
         $this->assertFalse($processor->canProcess('')); // Empty
         $this->assertFalse($processor->canProcess(str_repeat('a', 501))); // Too long
     }
 
-    public function test_processor_supported_filter_types()
+    public function test_processor_supported_filter_types(): void
     {
-        $processor = ProcessorFactory::create();
+        $processor = $this->app->make(NaturalLanguageProcessorInterface::class);
         $types = $processor->getSupportedFilterTypes();
 
         $this->assertIsArray($types);
@@ -191,26 +123,13 @@ class NaturalLanguageFilterTest extends TestCase
         $this->assertContains('date_after', $types);
     }
 
-    public function test_processor_locale_support()
+    public function test_processor_locale_and_mappings(): void
     {
-        $processor = ProcessorFactory::create();
+        $processor = $this->app->make(NaturalLanguageProcessorInterface::class);
 
-        // Should not throw exceptions when setting locale
-        $processor->setLocale('es');
-        $processor->setLocale('fr');
-        $processor->setLocale('de');
+        $processor->setLocale('it');
+        $processor->setCustomColumnMappings(['nome' => 'name']);
 
-        $this->assertTrue(true);
-    }
-
-    public function test_processor_custom_column_mappings()
-    {
-        $processor = ProcessorFactory::create();
-
-        // Should not throw exceptions when setting mappings
-        $processor->setCustomColumnMappings(['name' => 'full_name', 'email' => 'email_address']);
-
-        $mappings = $processor->getCustomColumnMappings();
-        $this->assertIsArray($mappings);
+        $this->assertSame(['nome' => 'name'], $processor->getCustomColumnMappings());
     }
 }
