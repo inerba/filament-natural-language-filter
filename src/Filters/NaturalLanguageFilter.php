@@ -5,14 +5,15 @@ namespace Inerba\FilamentNaturalLanguageFilter\Filters;
 use Exception;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Filters\BaseFilter;
 use Filament\Tables\Filters\Indicator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\HtmlString;
 use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 use Inerba\FilamentNaturalLanguageFilter\Services\EnhancedQueryBuilder;
 use Inerba\FilamentNaturalLanguageFilter\Services\QuerySuggestionsService;
-use InvalidArgumentException;
 use Throwable;
 
 class NaturalLanguageFilter extends BaseFilter
@@ -28,8 +29,6 @@ class NaturalLanguageFilter extends BaseFilter
     protected ?NaturalLanguageProcessorInterface $processor = null;
 
     protected ?QuerySuggestionsService $suggestionsService = null;
-
-    protected string $searchMode = 'submit';
 
     protected bool $debugMode = false;
 
@@ -81,37 +80,11 @@ class NaturalLanguageFilter extends BaseFilter
         return $this;
     }
 
-    public function searchMode(string $mode): static
-    {
-        if (! in_array($mode, ['live', 'submit'])) {
-            throw new InvalidArgumentException('Search mode must be either "live" or "submit"');
-        }
-
-        $this->searchMode = $mode;
-
-        return $this;
-    }
-
-    public function liveSearch(): static
-    {
-        return $this->searchMode('live');
-    }
-
-    public function submitSearch(): static
-    {
-        return $this->searchMode('submit');
-    }
-
     public function debug(bool $enabled = true): static
     {
         $this->debugMode = $enabled;
 
         return $this;
-    }
-
-    public function getSearchMode(): string
-    {
-        return $this->searchMode;
     }
 
     public function getAvailableColumns(): array
@@ -169,11 +142,13 @@ class NaturalLanguageFilter extends BaseFilter
         $autoDetectDirection = config('filament-natural-language-filter.languages.auto_detect_direction', true);
 
         $placeholder = $universalSupport
-            ? 'e.g., trovami tutti gli utenti chiamati samantah'
-            : 'e.g., show users named john created after 2023';
+            ? 'Scrivi cosa vuoi cercare…'
+            : 'Describe what you\'re looking for…';
 
         $textInput = TextInput::make('query')
-            ->label('Filtro con linguaggio naturale')
+            ->label('Filtro AI')
+            ->prefixIcon(Heroicon::OutlinedSparkles)
+            ->prefixIconColor('primary')
             ->placeholder($placeholder)
             ->extraInputAttributes([
                 'autocomplete' => 'off',
@@ -181,28 +156,9 @@ class NaturalLanguageFilter extends BaseFilter
                 ...$autoDetectDirection ? ['dir' => 'auto', 'lang' => 'auto'] : [],
             ]);
 
-        if ($this->searchMode === 'live') {
-            $helperText = $universalSupport
-                ? 'Digita la tua query in qualsiasi lingua - la ricerca avviene automaticamente | اكتب استعلامك بأي لغة | escriba su consulta en cualquier idioma'
-                : 'Type your query - search happens automatically as you type';
-
-            $textInput
-                ->live(true)
-                ->afterStateUpdated(function ($state) {
-                    // Trigger filter update immediately when state changes
-                    $this->getTable()?->resetPage();
-                })
-                ->debounce(800)
-                ->helperText($helperText);
-        } else {
-            $helperText = $universalSupport
-                ? 'Inserisci la tua query e premi Invio'
-                : 'Enter your query in natural language and press Enter to apply';
-
-            $textInput
-                ->live(true, null, false) // Explicitly disable live mode for submit
-                ->helperText($helperText);
-        }
+        $textInput
+            ->live(true, null, false)
+            ->helperText($this->buildHelperTextHtml('Premi Invio per applicare il filtro'));
 
         $this->schema([$textInput]);
 
@@ -231,6 +187,42 @@ class NaturalLanguageFilter extends BaseFilter
         }
 
         return $this->processor;
+    }
+
+    /**
+     * Build the helper text HTML with loading animation.
+     *
+     * Shows static text when idle; during Livewire loading shows a spinner
+     * and cycling phrases (similar to Claude Code thinking state).
+     */
+    protected function buildHelperTextHtml(string $staticText): HtmlString
+    {
+        $phrases = [
+            'Analizzo la query…',
+            'Interpreto il linguaggio naturale…',
+            'Identifico colonne e relazioni…',
+            'Genero i filtri…',
+            'Ottimizzo la risposta…',
+            'Quasi fatto…',
+        ];
+
+        $jsArray = "['".implode("', '", $phrases)."']";
+        $xData = "{p: {$jsArray}, i: 0, loading: false, init() {"
+            .' setInterval(() => { this.i = (this.i + 1) % this.p.length }, 1200);'
+            ." if (typeof Livewire !== 'undefined') {"
+            ."  Livewire.hook('commit', ({ succeed }) => {"
+            .'   this.loading = true;'
+            .'   succeed(() => { queueMicrotask(() => { this.loading = false; }); });'
+            .'  });'
+            .' }'
+            .'}}';
+
+        return new HtmlString(
+            '<span x-data="'.$xData.'">'
+            .'<span x-show="!loading">'.e($staticText).'</span>'
+            .'<span x-show="loading" x-text="p[i]" class="text-primary-600 dark:text-primary-400 italic"></span>'
+            .'</span>'
+        );
     }
 
     /**
