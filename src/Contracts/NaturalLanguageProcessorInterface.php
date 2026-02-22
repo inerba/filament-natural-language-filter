@@ -7,7 +7,7 @@ interface NaturalLanguageProcessorInterface
     /**
      * Process natural language query and convert it to database filters
      */
-    public function processQuery(string $query, array $availableColumns = []): array;
+    public function processQuery(string $query, array $availableColumns = [], array $availableRelations = []): array;
 
     /**
      * Validate if the query can be processed
