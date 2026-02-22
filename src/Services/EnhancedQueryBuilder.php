@@ -74,8 +74,16 @@ class EnhancedQueryBuilder
     {
         $this->validateFilter($filter);
 
-        $column = $filter['column'];
         $operator = $filter['operator'];
+
+        // Handle boolean logic first (these filters have no 'column' key)
+        if ($this->isBooleanLogicOperator($operator)) {
+            $this->applyBooleanLogicFilter($filter);
+
+            return;
+        }
+
+        $column = $filter['column'];
         $value = $filter['value'] ?? null;
         $relation = $filter['relation'] ?? null;
 
@@ -89,13 +97,6 @@ class EnhancedQueryBuilder
         // Handle aggregation operations
         if ($this->isAggregationOperator($operator)) {
             $this->applyAggregationFilter($column, $operator, $value);
-
-            return;
-        }
-
-        // Handle boolean logic
-        if ($this->isBooleanLogicOperator($operator)) {
-            $this->applyBooleanLogicFilter($filter);
 
             return;
         }
@@ -247,28 +248,38 @@ class EnhancedQueryBuilder
 
         switch ($operator) {
             case FilterType::AND_OPERATOR->value:
-                $this->query->where(function (Builder $query) use ($conditions) {
+                $this->query->where(function (Builder $subQuery) use ($conditions) {
                     foreach ($conditions as $condition) {
-                        $this->applyFilter($condition);
-                    }
-                });
-                break;
-
-            case FilterType::OR_OPERATOR->value:
-                $this->query->where(function (Builder $query) use ($conditions) {
-                    foreach ($conditions as $condition) {
-                        $this->query->orWhere(function (Builder $subQuery) use ($condition) {
-                            $this->applyFilter($condition);
+                        $subQuery->where(function (Builder $innerQuery) use ($condition) {
+                            $builder = new self($innerQuery, $this->availableColumns, $this->availableRelations);
+                            $builder->applyFilter($condition);
                         });
                     }
                 });
                 break;
 
+            case FilterType::OR_OPERATOR->value:
+                $this->query->where(function (Builder $subQuery) use ($conditions) {
+                    foreach ($conditions as $index => $condition) {
+                        if ($index === 0) {
+                            $builder = new self($subQuery, $this->availableColumns, $this->availableRelations);
+                            $builder->applyFilter($condition);
+                        } else {
+                            $subQuery->orWhere(function (Builder $innerQuery) use ($condition) {
+                                $builder = new self($innerQuery, $this->availableColumns, $this->availableRelations);
+                                $builder->applyFilter($condition);
+                            });
+                        }
+                    }
+                });
+                break;
+
             case FilterType::NOT_OPERATOR->value:
-                $this->query->where(function (Builder $query) use ($conditions) {
+                $this->query->where(function (Builder $subQuery) use ($conditions) {
                     foreach ($conditions as $condition) {
-                        $this->query->whereNot(function (Builder $subQuery) use ($condition) {
-                            $this->applyFilter($condition);
+                        $subQuery->whereNot(function (Builder $innerQuery) use ($condition) {
+                            $builder = new self($innerQuery, $this->availableColumns, $this->availableRelations);
+                            $builder->applyFilter($condition);
                         });
                     }
                 });
