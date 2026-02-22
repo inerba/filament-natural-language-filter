@@ -289,6 +289,8 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
 
         $operators = implode(', ', $this->getSupportedFilterTypes());
 
+        $today = now()->toDateString();
+
         $prompt = <<<PROMPT
 Convert natural language queries (any language) into structured database filters matching the provided JSON schema.
 
@@ -296,7 +298,7 @@ Operators: {$operators}
 
 Rules:
 - Multiple top-level filters are implicitly ANDed.
-- Relative dates (today, yesterday, last year…) → ISO date (YYYY-MM-DD).
+- Relative dates (today, yesterday, last year…) → ISO date (YYYY-MM-DD). Today is {$today}.
 - Boolean words in any language (o/ou/oder/or → or; e/et/und/and → and; non/nicht/not → not) → boolean_filter.
 - Relationship queries ("with role admin", "con ruolo editor") → relationship_filter with has_relation operator.
 - OR + AND in the same query: put the OR group as one top-level boolean_filter, each AND condition as separate top-level filters.
