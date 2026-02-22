@@ -43,17 +43,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Language Support
-    |--------------------------------------------------------------------------
-    */
-    'languages' => [
-        'universal_support' => env('FILAMENT_NL_FILTER_UNIVERSAL_SUPPORT', true),
-        'auto_detect_direction' => env('FILAMENT_NL_FILTER_AUTO_DETECT_DIRECTION', true),
-        'preserve_original_values' => env('FILAMENT_NL_FILTER_PRESERVE_ORIGINAL_VALUES', true),
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
     | Supported Filter Types
     |--------------------------------------------------------------------------
     */

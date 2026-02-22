@@ -581,11 +581,6 @@ return [
         'enabled' => true,
         'ttl' => 3600, // 1 hour
     ],
-    'languages' => [
-        'universal_support' => true,
-        'auto_detect_direction' => true,
-        'preserve_original_values' => true,
-    ],
 ];
 ```
 
@@ -596,9 +591,6 @@ return [
 ```env
 FILAMENT_NL_FILTER_PROVIDER=openai
 OPENAI_API_KEY=your-openai-api-key-here
-FILAMENT_NL_FILTER_UNIVERSAL_SUPPORT=true
-FILAMENT_NL_FILTER_AUTO_DETECT_DIRECTION=true
-FILAMENT_NL_FILTER_PRESERVE_ORIGINAL_VALUES=true
 ```
 
 **For Azure OpenAI:**

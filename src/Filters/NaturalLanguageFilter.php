@@ -137,12 +137,7 @@ class NaturalLanguageFilter extends BaseFilter
     {
         parent::setUp();
 
-        $universalSupport = config('filament-natural-language-filter.languages.universal_support', true);
-        $autoDetectDirection = config('filament-natural-language-filter.languages.auto_detect_direction', true);
-
-        $placeholder = $universalSupport
-            ? 'Scrivi cosa vuoi cercare…'
-            : 'Describe what you\'re looking for…';
+        $placeholder = 'Scrivi cosa vuoi cercare…';
 
         $textInput = TextInput::make('query')
             ->label('Filtro AI')
@@ -153,7 +148,8 @@ class NaturalLanguageFilter extends BaseFilter
                 'autocomplete' => 'off',
                 'spellcheck' => 'false',
                 'wire:keydown.enter.prevent' => 'applyTableFilters',
-                ...$autoDetectDirection ? ['dir' => 'auto', 'lang' => 'auto'] : [],
+                'dir' => 'auto', 
+                'lang' => 'auto',
             ]);
 
         $textInput
