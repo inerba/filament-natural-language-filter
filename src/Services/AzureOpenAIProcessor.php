@@ -1,11 +1,12 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
+namespace Inerba\FilamentNaturalLanguageFilter\Services;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 
 class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
 {
@@ -73,7 +74,7 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
             ]);
 
             return $result;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Natural Language Filter Error: '.$e->getMessage(), [
                 'query' => $query,
                 'available_columns' => $availableColumns,
@@ -138,7 +139,7 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
             }
 
             return $isAvailable;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::warning('Azure OpenAI availability check failed: '.$e->getMessage());
 
             return false;
@@ -167,13 +168,13 @@ class AzureOpenAIProcessor implements NaturalLanguageProcessorInterface
         ]);
 
         if (! $response->successful()) {
-            throw new \Exception('Azure OpenAI API request failed: '.$response->body());
+            throw new Exception('Azure OpenAI API request failed: '.$response->body());
         }
 
         $data = $response->json();
 
         if (! isset($data['choices'][0]['message']['content'])) {
-            throw new \Exception('Invalid response from Azure OpenAI API');
+            throw new Exception('Invalid response from Azure OpenAI API');
         }
 
         return $data['choices'][0]['message']['content'];
@@ -268,7 +269,7 @@ Current locale: {$this->locale}";
             }
 
             return $validatedFilters;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error parsing AI response: '.$e->getMessage(), [
                 'response' => $response,
             ]);

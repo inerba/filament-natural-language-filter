@@ -55,6 +55,7 @@ OLLAMA_TIMEOUT=30
 ```
 
 **Popular Ollama Models:**
+
 - `llama2` - Meta's Llama 2
 - `codellama` - Code-focused Llama model
 - `mistral` - Mistral 7B
@@ -74,6 +75,7 @@ LMSTUDIO_TIMEOUT=30
 ```
 
 **LM Studio Setup:**
+
 1. Download and install LM Studio
 2. Load your preferred model
 3. Start the local server (usually on port 1234)
@@ -88,7 +90,7 @@ CUSTOM_AI_MODEL=your-model-name
 CUSTOM_AI_API_KEY=your_api_key
 CUSTOM_AI_FORMAT=openai
 CUSTOM_AI_AUTH_HEADER=Authorization
-CUSTOM_AI_AUTH_PREFIX=Bearer 
+CUSTOM_AI_AUTH_PREFIX=Bearer
 CUSTOM_AI_RESPONSE_PATH=choices.0.message.content
 FILAMENT_NL_FILTER_MAX_TOKENS=500
 FILAMENT_NL_FILTER_TEMPERATURE=0.1
@@ -96,6 +98,7 @@ CUSTOM_AI_TIMEOUT=30
 ```
 
 **Supported Custom Formats:**
+
 - `openai` - OpenAI-compatible API
 - `anthropic` - Anthropic Claude API
 - `custom` - Custom request/response format
@@ -105,7 +108,7 @@ CUSTOM_AI_TIMEOUT=30
 ### Basic Usage (Automatic Provider Selection)
 
 ```php
-use EdrisaTuray\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
+use Inerba\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
 
 // The filter will automatically use the configured provider
 NaturalLanguageFilter::make()
@@ -116,7 +119,7 @@ NaturalLanguageFilter::make()
 ### Direct Provider Usage
 
 ```php
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
+use Inerba\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 
 // Create a specific processor
 $ollamaProcessor = ProcessorFactory::createWithProvider('ollama');
@@ -134,14 +137,14 @@ $bestProvider = ProcessorFactory::getBestAvailableProvider();
 ### Dependency Injection
 
 ```php
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
 
 class MyController
 {
     public function __construct(
         private OllamaProcessor $processor
     ) {}
-    
+
     public function processQuery(string $query)
     {
         return $this->processor->processQuery($query, ['name', 'email']);
@@ -151,13 +154,13 @@ class MyController
 
 ## Provider Comparison
 
-| Provider | Pros | Cons | Best For |
-|----------|------|------|----------|
-| **OpenAI** | Reliable, fast, high quality | Requires API key, costs money | Production applications |
-| **Azure OpenAI** | Enterprise-grade, compliant | Requires Azure setup | Enterprise applications |
-| **Ollama** | Free, local, private | Requires local setup, slower | Development, privacy-focused |
-| **LM Studio** | Easy GUI, local models | Requires local setup | Local development |
-| **Custom** | Flexible, any API | Requires configuration | Specialized APIs |
+| Provider         | Pros                         | Cons                          | Best For                     |
+| ---------------- | ---------------------------- | ----------------------------- | ---------------------------- |
+| **OpenAI**       | Reliable, fast, high quality | Requires API key, costs money | Production applications      |
+| **Azure OpenAI** | Enterprise-grade, compliant  | Requires Azure setup          | Enterprise applications      |
+| **Ollama**       | Free, local, private         | Requires local setup, slower  | Development, privacy-focused |
+| **LM Studio**    | Easy GUI, local models       | Requires local setup          | Local development            |
+| **Custom**       | Flexible, any API            | Requires configuration        | Specialized APIs             |
 
 ## Troubleshooting
 

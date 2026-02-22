@@ -5,12 +5,13 @@ A simple Filament filter that converts natural language text into database queri
 ## Installation
 
 ```bash
-composer require edrisaturay/filament-natural-language-filter
+composer require inerba/filament-natural-language-filter
 ```
 
 ## Configuration
 
 1. Publish the config file:
+
 ```bash
 php artisan vendor:publish --tag="filament-natural-language-filter-config"
 ```
@@ -18,12 +19,14 @@ php artisan vendor:publish --tag="filament-natural-language-filter-config"
 2. Add your AI provider configuration to your `.env` file:
 
 **For OpenAI:**
+
 ```env
 FILAMENT_NL_FILTER_PROVIDER=openai
 OPENAI_API_KEY=your-openai-api-key-here
 ```
 
 **For Azure OpenAI:**
+
 ```env
 FILAMENT_NL_FILTER_PROVIDER=azure
 AZURE_OPENAI_API_KEY=your-azure-openai-api-key
@@ -36,7 +39,7 @@ AZURE_OPENAI_DEPLOYMENT_NAME=your-deployment-name
 Add the filter to your Filament table:
 
 ```php
-use EdrisaTuray\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
+use Inerba\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
 
 public function table(Table $table): Table
 {
@@ -48,7 +51,7 @@ public function table(Table $table): Table
             NaturalLanguageFilter::make()
                 ->availableColumns([
                     'id',
-                    'name', 
+                    'name',
                     'email',
                     'status',
                     'created_at',
@@ -66,6 +69,7 @@ public function table(Table $table): Table
 ### Advanced Features
 
 #### Relationship Filtering
+
 ```php
 // Enable relationship filtering
 NaturalLanguageFilter::make()
@@ -77,6 +81,7 @@ NaturalLanguageFilter::make()
 ```
 
 #### Boolean Logic Support
+
 ```php
 // Enable boolean logic (AND/OR operations)
 // Supports: "users named john OR email contains gmail"
@@ -85,6 +90,7 @@ NaturalLanguageFilter::make()
 ```
 
 #### Aggregation Queries
+
 ```php
 // Enable aggregation operations
 // Supports: "top 10 users by order count"
@@ -93,6 +99,7 @@ NaturalLanguageFilter::make()
 ```
 
 #### Query Suggestions
+
 ```php
 // Enable AI-powered query suggestions
 // Provides autocomplete and intelligent suggestions
@@ -105,7 +112,7 @@ NaturalLanguageFilter::make()
 
 ```php
 // ProductResource.php
-use EdrisaTuray\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
+use Inerba\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
 
 public function table(Table $table): Table
 {
@@ -121,7 +128,7 @@ public function table(Table $table): Table
         ->filters([
             NaturalLanguageFilter::make()
                 ->availableColumns([
-                    'name', 'price', 'stock_quantity', 'status', 
+                    'name', 'price', 'stock_quantity', 'status',
                     'created_at', 'updated_at'
                 ])
                 ->availableRelations(['category', 'reviews', 'orders'])
@@ -268,7 +275,7 @@ NaturalLanguageFilter::make()
 // No additional configuration needed!
 
 // English: "active users"
-// Spanish: "usuarios activos" 
+// Spanish: "usuarios activos"
 // French: "utilisateurs actifs"
 // German: "aktive benutzer"
 // Arabic: "المستخدمون النشطون"
@@ -291,7 +298,7 @@ class CustomNaturalLanguageFilter extends NaturalLanguageFilter
                   ->where('email_verified_at', '!=', null);
             return;
         }
-        
+
         // Apply standard filter
         parent::applyFilter($query, $filter);
     }
@@ -311,9 +318,9 @@ public function table(Table $table): Table
                     'active' => 'Active',
                     'inactive' => 'Inactive',
                 ]),
-            
+
             DateFilter::make('created_at'),
-            
+
             // Natural language filter works alongside others
             NaturalLanguageFilter::make()
                 ->availableColumns(['name', 'email', 'status'])
@@ -331,17 +338,17 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $query = User::query();
-        
+
         if ($request->has('natural_query')) {
             $filter = NaturalLanguageFilter::make()
                 ->availableColumns(['name', 'email', 'status'])
                 ->availableRelations(['orders']);
-                
+
             $query = $filter->apply($query, [
                 'query' => $request->get('natural_query')
             ]);
         }
-        
+
         return $query->paginate();
     }
 }
@@ -352,6 +359,7 @@ class UserController extends Controller
 You can configure how the filter triggers searches:
 
 #### Submit Mode (Default) - Search on Enter key
+
 ```php
 NaturalLanguageFilter::make()
     ->availableColumns(['name', 'email', 'status'])
@@ -359,6 +367,7 @@ NaturalLanguageFilter::make()
 ```
 
 #### Live Mode - Search as you type
+
 ```php
 NaturalLanguageFilter::make()
     ->availableColumns(['name', 'email', 'status'])
@@ -366,6 +375,7 @@ NaturalLanguageFilter::make()
 ```
 
 #### Manual Mode Configuration
+
 ```php
 NaturalLanguageFilter::make()
     ->availableColumns(['name', 'email', 'status'])
@@ -375,12 +385,14 @@ NaturalLanguageFilter::make()
 ### When to Use Each Mode
 
 **Submit Mode (Default)** - Best for:
+
 - Large datasets where live search might be slow
 - Complex queries that users want to perfect before searching
 - Reducing API calls to OpenAI (only search when user is ready)
 
 **Live Mode** - Best for:
-- Instant feedback and better user experience  
+
+- Instant feedback and better user experience
 - Smaller datasets where performance isn't a concern
 - Users who prefer immediate results as they type
 
@@ -396,18 +408,21 @@ NaturalLanguageFilter::make()
 ### Basic Filtering Examples
 
 **Simple Text Searches:**
+
 - "users named john" → `WHERE name LIKE '%john%'`
 - "active users" → `WHERE status = 'active'`
 - "email contains gmail" → `WHERE email LIKE '%gmail%'`
 - "products in electronics" → `WHERE category LIKE '%electronics%'`
 
 **Date Filtering:**
+
 - "created after 2023" → `WHERE created_at > '2023-01-01'`
 - "created yesterday" → `WHERE DATE(created_at) = '2023-12-31'`
 - "created this week" → `WHERE created_at >= '2023-12-25'`
 - "created between january and march" → `WHERE created_at BETWEEN '2023-01-01' AND '2023-03-31'`
 
 **Numeric Comparisons:**
+
 - "orders over $100" → `WHERE amount > 100`
 - "users with age between 18 and 65" → `WHERE age BETWEEN 18 AND 65`
 - "products with price less than 50" → `WHERE price < 50`
@@ -415,6 +430,7 @@ NaturalLanguageFilter::make()
 ### Advanced Relationship Filtering
 
 **Cross-Model Queries:**
+
 ```php
 // Setup with relationships
 NaturalLanguageFilter::make()
@@ -423,6 +439,7 @@ NaturalLanguageFilter::make()
 ```
 
 **Relationship Examples:**
+
 - "users with orders over $100" → `WHERE EXISTS (SELECT 1 FROM orders WHERE user_id = users.id AND amount > 100)`
 - "posts by active users" → `WHERE EXISTS (SELECT 1 FROM users WHERE id = posts.user_id AND status = 'active')`
 - "products in electronics category" → `WHERE EXISTS (SELECT 1 FROM categories WHERE id = products.category_id AND name = 'electronics')`
@@ -431,28 +448,34 @@ NaturalLanguageFilter::make()
 ### Boolean Logic Examples
 
 **AND Operations:**
+
 - "active users AND created after 2023" → `WHERE status = 'active' AND created_at > '2023-01-01'`
 - "users with gmail email AND verified" → `WHERE email LIKE '%gmail%' AND verified = 1`
 
 **OR Operations:**
+
 - "users named john OR email contains gmail" → `WHERE name LIKE '%john%' OR email LIKE '%gmail%'`
 - "status is pending OR status is processing" → `WHERE status = 'pending' OR status = 'processing'`
 
 **Complex Logic:**
+
 - "status is pending AND (amount > 100 OR priority is high)" → `WHERE status = 'pending' AND (amount > 100 OR priority = 'high')`
 - "active users AND (created this year OR has orders)" → `WHERE status = 'active' AND (YEAR(created_at) = 2023 OR EXISTS (SELECT 1 FROM orders WHERE user_id = users.id))`
 
 ### Aggregation Query Examples
 
 **Count Operations:**
+
 - "top 10 users by order count" → `SELECT users.*, COUNT(orders.id) as order_count FROM users LEFT JOIN orders ON users.id = orders.user_id GROUP BY users.id ORDER BY order_count DESC LIMIT 10`
 - "users with more than 5 posts" → `WHERE (SELECT COUNT(*) FROM posts WHERE user_id = users.id) > 5`
 
 **Sum/Average Operations:**
+
 - "products with highest sales" → `SELECT products.*, SUM(order_items.quantity) as total_sales FROM products JOIN order_items ON products.id = order_items.product_id GROUP BY products.id ORDER BY total_sales DESC`
 - "users with average order value over $200" → `WHERE (SELECT AVG(amount) FROM orders WHERE user_id = users.id) > 200`
 
 **Min/Max Operations:**
+
 - "oldest users" → `ORDER BY created_at ASC`
 - "newest products" → `ORDER BY created_at DESC`
 - "highest priced products" → `ORDER BY price DESC`
@@ -464,30 +487,37 @@ The filter supports **ANY language** with automatic AI translation and understan
 ### Multi-Language Examples
 
 **English:**
+
 - "show users named john" → `WHERE name LIKE '%john%'`
 - "created after 2023" → `WHERE created_at > '2023-01-01'`
 
 **Arabic (العربية):**
+
 - "الاسم يحتوي على أحمد" → `WHERE name LIKE '%أحمد%'`
 - "أنشئ بعد 2023" → `WHERE created_at > '2023-01-01'`
 
 **Spanish (Español):**
+
 - "usuarios con nombre juan" → `WHERE name LIKE '%juan%'`
 - "creado después de 2023" → `WHERE created_at > '2023-01-01'`
 
 **French (Français):**
+
 - "nom contient marie" → `WHERE name LIKE '%marie%'`
 - "créé après 2023" → `WHERE created_at > '2023-01-01'`
 
 **German (Deutsch):**
+
 - "benutzer mit namen hans" → `WHERE name LIKE '%hans%'`
 - "erstellt nach 2023" → `WHERE created_at > '2023-01-01'`
 
 **Chinese (中文):**
+
 - "姓名包含张三" → `WHERE name LIKE '%张三%'`
 - "2023年后创建" → `WHERE created_at > '2023-01-01'`
 
 **Japanese (日本語):**
+
 - "田中という名前のユーザー" → `WHERE name LIKE '%田中%'`
 - "2023年以降に作成" → `WHERE created_at > '2023-01-01'`
 
@@ -501,8 +531,9 @@ The filter supports **ANY language** with automatic AI translation and understan
 ### Mixed Language Queries
 
 The AI can handle mixed-language queries naturally:
+
 - "name يحتوي على john" ✅
-- "usuario con email gmail.com" ✅  
+- "usuario con email gmail.com" ✅
 - "姓名 contains 张三" ✅
 
 ## AI Provider Support
@@ -510,12 +541,14 @@ The AI can handle mixed-language queries naturally:
 The package supports both **OpenAI** and **Azure OpenAI** services. You can choose your preferred provider:
 
 ### OpenAI (Default)
+
 ```env
 FILAMENT_NL_FILTER_PROVIDER=openai
 OPENAI_API_KEY=your-openai-api-key-here
 ```
 
 ### Azure OpenAI
+
 ```env
 FILAMENT_NL_FILTER_PROVIDER=azure
 AZURE_OPENAI_API_KEY=your-azure-openai-api-key
@@ -559,6 +592,7 @@ return [
 ### Environment Variables
 
 **For OpenAI:**
+
 ```env
 FILAMENT_NL_FILTER_PROVIDER=openai
 OPENAI_API_KEY=your-openai-api-key-here
@@ -568,6 +602,7 @@ FILAMENT_NL_FILTER_PRESERVE_ORIGINAL_VALUES=true
 ```
 
 **For Azure OpenAI:**
+
 ```env
 FILAMENT_NL_FILTER_PROVIDER=azure
 AZURE_OPENAI_API_KEY=your-azure-openai-api-key
@@ -580,6 +615,7 @@ FILAMENT_NL_FILTER_PRESERVE_ORIGINAL_VALUES=true
 ```
 
 **Advanced Features Configuration:**
+
 ```env
 # Relationship Filtering
 FILAMENT_NL_FILTER_RELATIONSHIP_FILTERING=true
@@ -637,8 +673,10 @@ The package includes a Git pre-push hook that automatically bumps the patch vers
 ### Common Issues
 
 #### 1. Filter Not Working
+
 **Problem:** Natural language filter doesn't process queries
 **Solutions:**
+
 ```bash
 # Check if OpenAI/Azure is configured
 php artisan config:show filament-natural-language-filter
@@ -649,8 +687,10 @@ echo $AZURE_OPENAI_API_KEY
 ```
 
 #### 2. Slow Performance
+
 **Problem:** Filter is slow with large datasets
 **Solutions:**
+
 ```php
 // Use submit mode instead of live mode
 NaturalLanguageFilter::make()
@@ -665,8 +705,10 @@ FILAMENT_NL_FILTER_AGGREGATION_QUERIES=false
 ```
 
 #### 3. AI Not Understanding Queries
+
 **Problem:** AI returns empty results or wrong filters
 **Solutions:**
+
 ```php
 // Add more context to available columns
 ->availableColumns([
@@ -680,8 +722,10 @@ FILAMENT_NL_FILTER_LOG_LEVEL=debug
 ```
 
 #### 4. Relationship Filtering Issues
+
 **Problem:** Relationship queries don't work
 **Solutions:**
+
 ```php
 // Ensure relationships are properly defined
 // In your model:
@@ -695,8 +739,10 @@ public function orders()
 ```
 
 #### 5. Cache Issues
+
 **Problem:** Results are cached and not updating
 **Solutions:**
+
 ```bash
 # Clear cache
 php artisan cache:clear
@@ -708,6 +754,7 @@ FILAMENT_NL_FILTER_CACHE_ENABLED=false
 ### Performance Optimization
 
 #### Database Indexing
+
 ```sql
 -- Add indexes for commonly filtered columns
 CREATE INDEX idx_users_status ON users(status);
@@ -717,6 +764,7 @@ CREATE INDEX idx_orders_user_id ON orders(user_id);
 ```
 
 #### Query Optimization
+
 ```php
 // Use eager loading for relationships
 $users = User::with(['orders', 'profile'])
@@ -728,6 +776,7 @@ FILAMENT_NL_FILTER_MAX_RELATION_DEPTH=1
 ```
 
 #### Caching Strategy
+
 ```php
 // Configure appropriate cache TTL
 'cache' => [
@@ -740,6 +789,7 @@ FILAMENT_NL_FILTER_MAX_RELATION_DEPTH=1
 ### Debugging
 
 #### Enable Debug Mode
+
 ```env
 FILAMENT_NL_FILTER_LOGGING=true
 FILAMENT_NL_FILTER_LOG_LEVEL=debug
@@ -747,6 +797,7 @@ LOG_CHANNEL=stack
 ```
 
 #### Check Logs
+
 ```bash
 # View logs
 tail -f storage/logs/laravel.log | grep "Natural Language Filter"
@@ -756,12 +807,13 @@ tail -f storage/logs/filament-nl-filter.log
 ```
 
 #### Test AI Connection
+
 ```php
 // Test in tinker
 php artisan tinker
 
 // Test OpenAI
-$processor = app(\EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface::class);
+$processor = app(\Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface::class);
 $result = $processor->processQuery('active users', ['name', 'status']);
 dd($result);
 ```
@@ -769,6 +821,7 @@ dd($result);
 ### Advanced Configuration
 
 #### Custom AI Prompts
+
 ```php
 // Override system prompt in config
 'custom_prompts' => [
@@ -778,6 +831,7 @@ dd($result);
 ```
 
 #### Rate Limiting
+
 ```php
 // Add rate limiting for API calls
 'rate_limiting' => [
@@ -788,6 +842,7 @@ dd($result);
 ```
 
 #### Custom Validation
+
 ```php
 // Add custom query validation
 'validation' => [
@@ -801,6 +856,7 @@ dd($result);
 ### Migration Guide
 
 #### From Basic to Advanced
+
 ```php
 // Before (basic)
 NaturalLanguageFilter::make()
@@ -814,6 +870,7 @@ NaturalLanguageFilter::make()
 ```
 
 #### Updating Configuration
+
 ```bash
 # Publish updated config
 php artisan vendor:publish --tag="filament-natural-language-filter-config" --force
@@ -826,6 +883,7 @@ cp .env.example .env
 ### Best Practices
 
 #### 1. Column Selection
+
 ```php
 // Good: Specific, relevant columns
 ->availableColumns(['name', 'email', 'status', 'created_at'])
@@ -835,6 +893,7 @@ cp .env.example .env
 ```
 
 #### 2. Relationship Management
+
 ```php
 // Good: Essential relationships only
 ->availableRelations(['orders', 'profile'])
@@ -844,6 +903,7 @@ cp .env.example .env
 ```
 
 #### 3. Performance Monitoring
+
 ```php
 // Add performance monitoring
 use Illuminate\Support\Facades\Log;
@@ -875,6 +935,7 @@ vendor/bin/phpunit --filter NaturalLanguageFilterTest
 ### Manual Testing
 
 #### Test Basic Functionality
+
 ```php
 // Test in tinker
 php artisan tinker
@@ -888,9 +949,10 @@ dd($result->toSql());
 ```
 
 #### Test AI Integration
+
 ```php
 // Test AI processor directly
-$processor = app(\EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface::class);
+$processor = app(\Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface::class);
 
 // Test query processing
 $filters = $processor->processQuery('users created after 2023', ['name', 'created_at']);
@@ -898,6 +960,7 @@ dd($filters);
 ```
 
 #### Test Relationship Filtering
+
 ```php
 // Test relationship queries
 $filter = NaturalLanguageFilter::make()
@@ -960,7 +1023,7 @@ curl -X GET "http://localhost/api/users?natural_query=active%20users" \
 
 ```bash
 # Clone the repository
-git clone https://github.com/edrisaturay/filament-natural-language-filter.git
+git clone https://github.com/inerba/filament-natural-language-filter.git
 cd filament-natural-language-filter
 
 # Install dependencies
@@ -982,17 +1045,20 @@ composer run phpstan
 ### Adding New Features
 
 1. **Create Feature Branch**
+
 ```bash
 git checkout -b feature/new-feature
 ```
 
 2. **Implement Feature**
+
 ```php
 // Add your new feature code
 // Follow existing patterns and add tests
 ```
 
 3. **Add Tests**
+
 ```php
 // Create test file
 tests/Feature/NewFeatureTest.php
@@ -1005,12 +1071,15 @@ public function test_new_feature_works()
 ```
 
 4. **Update Documentation**
+
 ```markdown
 # Update README.md with new feature documentation
+
 # Add examples and usage patterns
 ```
 
 5. **Submit Pull Request**
+
 ```bash
 git add .
 git commit -m "Add new feature: description"
@@ -1039,21 +1108,29 @@ composer run cs-fix
 ### Release Process
 
 1. **Update Version**
+
 ```bash
 composer run version:patch  # or minor/major
 ```
 
 2. **Update Changelog**
+
 ```markdown
 # Add to CHANGELOG.md
+
 ## [1.0.2] - 2024-01-01
+
 ### Added
+
 - New feature description
+
 ### Fixed
+
 - Bug fix description
 ```
 
 3. **Create Release**
+
 ```bash
 git tag v1.0.2
 git push origin v1.0.2
@@ -1068,4 +1145,4 @@ git push origin v1.0.2
 
 ## License
 
-MIT 
+MIT

@@ -1,10 +1,10 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Tests\Unit;
+namespace Inerba\FilamentNaturalLanguageFilter\Tests\Unit;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use Inerba\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
 use Mockery;
 use Orchestra\Testbench\TestCase;
 

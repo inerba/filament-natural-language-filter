@@ -1,6 +1,6 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Contracts;
+namespace Inerba\FilamentNaturalLanguageFilter\Contracts;
 
 interface NaturalLanguageProcessorInterface
 {

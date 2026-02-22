@@ -1,10 +1,11 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
+namespace Inerba\FilamentNaturalLanguageFilter\Services;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Enums\FilterType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
+use Inerba\FilamentNaturalLanguageFilter\Enums\FilterType;
+use InvalidArgumentException;
 
 /**
  * Enhanced Query Builder for Natural Language Filtering
@@ -67,7 +68,7 @@ class EnhancedQueryBuilder
      *
      * @param  array  $filter  The filter configuration
      *
-     * @throws \InvalidArgumentException If filter is invalid
+     * @throws InvalidArgumentException If filter is invalid
      */
     public function applyFilter(array $filter): void
     {
@@ -372,12 +373,12 @@ class EnhancedQueryBuilder
      *
      * @param  array  $filter  The filter to validate
      *
-     * @throws \InvalidArgumentException If filter is invalid
+     * @throws InvalidArgumentException If filter is invalid
      */
     protected function validateFilter(array $filter): void
     {
         if (! isset($filter['operator'])) {
-            throw new \InvalidArgumentException('Filter must have an operator');
+            throw new InvalidArgumentException('Filter must have an operator');
         }
 
         $operator = $filter['operator'];
@@ -389,19 +390,19 @@ class EnhancedQueryBuilder
             FilterType::getAggregationTypes(),
             FilterType::getRelationshipTypes()
         ))) {
-            throw new \InvalidArgumentException("Unsupported operator: {$operator}");
+            throw new InvalidArgumentException("Unsupported operator: {$operator}");
         }
 
         // Validate required fields based on operator type
         if ($this->isRelationshipOperator($operator)) {
             if (! isset($filter['relation'])) {
-                throw new \InvalidArgumentException('Relationship filters must specify a relation');
+                throw new InvalidArgumentException('Relationship filters must specify a relation');
             }
         }
 
         if ($this->isBooleanLogicOperator($operator)) {
             if (! isset($filter['conditions']) || ! is_array($filter['conditions'])) {
-                throw new \InvalidArgumentException('Boolean logic filters must specify conditions');
+                throw new InvalidArgumentException('Boolean logic filters must specify conditions');
             }
         }
     }

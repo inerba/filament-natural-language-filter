@@ -1,9 +1,13 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Examples;
+namespace Inerba\FilamentNaturalLanguageFilter\Examples;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
+use Exception;
+use Inerba\FilamentNaturalLanguageFilter\Examples\Forms\Components\TextInput;
+use Inerba\FilamentNaturalLanguageFilter\Examples\Tables\Filters\Filter;
+use Inerba\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
+use Log;
 
 /**
  * Example usage of different AI providers
@@ -135,9 +139,9 @@ class ProviderExamples
     {
         // In your Filament resource
         return [
-            Tables\Filters\Filter::make('natural_language')
+            Filter::make('natural_language')
                 ->form([
-                    Forms\Components\TextInput::make('query')
+                    TextInput::make('query')
                         ->label('Natural Language Search')
                         ->placeholder('e.g., users created after 2023')
                         ->live()
@@ -184,9 +188,9 @@ class ProviderExamples
             }
 
             return $filters;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Log error and return empty filters
-            \Log::error('AI processing failed: '.$e->getMessage());
+            Log::error('AI processing failed: '.$e->getMessage());
 
             return [];
         }

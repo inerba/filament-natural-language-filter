@@ -1,8 +1,9 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
+namespace Inerba\FilamentNaturalLanguageFilter\Services;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use Exception;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 
 class ProcessorFactory
 {
@@ -61,7 +62,7 @@ class ProcessorFactory
                     'available' => $processor->canProcess('test query'),
                     'class' => get_class($processor),
                 ];
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $status[$provider] = [
                     'available' => false,
                     'error' => $e->getMessage(),

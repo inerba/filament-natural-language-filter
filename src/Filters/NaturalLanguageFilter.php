@@ -1,15 +1,18 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Filters;
+namespace Inerba\FilamentNaturalLanguageFilter\Filters;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\EnhancedQueryBuilder;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\QuerySuggestionsService;
+use Exception;
 use Filament\Forms\Components\TextInput;
 use Filament\Tables\Filters\BaseFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use Inerba\FilamentNaturalLanguageFilter\Services\EnhancedQueryBuilder;
+use Inerba\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
+use Inerba\FilamentNaturalLanguageFilter\Services\QuerySuggestionsService;
+use InvalidArgumentException;
+use Throwable;
 
 class NaturalLanguageFilter extends BaseFilter
 {
@@ -64,7 +67,7 @@ class NaturalLanguageFilter extends BaseFilter
     public function searchMode(string $mode): static
     {
         if (! in_array($mode, ['live', 'submit'])) {
-            throw new \InvalidArgumentException('Search mode must be either "live" or "submit"');
+            throw new InvalidArgumentException('Search mode must be either "live" or "submit"');
         }
 
         $this->searchMode = $mode;
@@ -142,11 +145,11 @@ class NaturalLanguageFilter extends BaseFilter
         $autoDetectDirection = config('filament-natural-language-filter.languages.auto_detect_direction', true);
 
         $placeholder = $universalSupport
-            ? 'e.g., show users named john | اعرض المستخدمين باسم أحمد | mostrar usuarios llamados juan'
+            ? 'e.g., trovami tutti gli utenti chiamati samantah'
             : 'e.g., show users named john created after 2023';
 
         $textInput = TextInput::make('query')
-            ->label('Natural Language Filter')
+            ->label('Filtro con linguaggio naturale')
             ->placeholder($placeholder)
             ->extraInputAttributes([
                 'autocomplete' => 'off',
@@ -156,11 +159,11 @@ class NaturalLanguageFilter extends BaseFilter
 
         if ($this->searchMode === 'live') {
             $helperText = $universalSupport
-                ? 'Type your query in any language - search happens automatically | اكتب استعلامك بأي لغة | escriba su consulta en cualquier idioma'
+                ? 'Digita la tua query in qualsiasi lingua - la ricerca avviene automaticamente | اكتب استعلامك بأي لغة | escriba su consulta en cualquier idioma'
                 : 'Type your query - search happens automatically as you type';
 
             $textInput
-                ->live()
+                ->live(true)
                 ->afterStateUpdated(function ($state) {
                     // Trigger filter update immediately when state changes
                     $this->getTable()?->resetPage();
@@ -169,28 +172,28 @@ class NaturalLanguageFilter extends BaseFilter
                 ->helperText($helperText);
         } else {
             $helperText = $universalSupport
-                ? 'Enter your query in any language and press Enter | أدخل استعلامك بأي لغة واضغط Enter | ingrese su consulta en cualquier idioma y presione Enter'
+                ? 'Inserisci la tua query e premi Invio'
                 : 'Enter your query in natural language and press Enter to apply';
 
             $textInput
-                ->live(false) // Explicitly disable live mode for submit
+                ->live(true, null, false) // Explicitly disable live mode for submit
                 ->helperText($helperText);
         }
 
-        $this->form([$textInput]);
+        $this->schema([$textInput]);
     }
 
     protected function getProcessor(): ?NaturalLanguageProcessorInterface
     {
         if ($this->processor === null) {
             try {
-                $this->processor = app(NaturalLanguageProcessorInterface::class);
-            } catch (\Exception $e) {
+                $this->processor = resolve(NaturalLanguageProcessorInterface::class);
+            } catch (Exception $e) {
                 Log::error('Failed to resolve NaturalLanguageProcessorInterface: '.$e->getMessage());
                 try {
                     // Fallback to factory with default provider
                     $this->processor = ProcessorFactory::create();
-                } catch (\Exception $fallbackException) {
+                } catch (Exception $fallbackException) {
                     Log::error('Failed to create fallback processor: '.$fallbackException->getMessage());
                     $this->processor = null;
                 }
@@ -258,15 +261,19 @@ class NaturalLanguageFilter extends BaseFilter
 
                 try {
                     $enhancedBuilder->applyFilter($filter);
-                } catch (\Exception $filterException) {
+                } catch (Exception $filterException) {
                     Log::warning('Failed to apply filter: '.$filterException->getMessage(), [
                         'filter' => $filter,
                     ]);
                 }
             }
 
-            return $enhancedBuilder->getQuery();
-        } catch (\Exception $e) {
+            $finalQuery = $enhancedBuilder->getQuery();
+
+            $this->logFinalSqlQuery($finalQuery, $queryText, $filters);
+
+            return $finalQuery;
+        } catch (Exception $e) {
             Log::error('Natural Language Filter Error: '.$e->getMessage(), [
                 'query' => $queryText,
                 'available_columns' => $this->getAvailableColumns(),
@@ -275,6 +282,22 @@ class NaturalLanguageFilter extends BaseFilter
         }
 
         return $query;
+    }
+
+    protected function logFinalSqlQuery(Builder $query, string $queryText, array $filters): void
+    {
+        try {
+            Log::info('NaturalLanguageFilter - Final SQL Query', [
+                'user_query' => $queryText,
+                'sql' => $query->toSql(),
+                'bindings' => $query->getBindings(),
+                'filters_count' => count($filters),
+            ]);
+        } catch (Throwable $exception) {
+            Log::warning('NaturalLanguageFilter - Unable to log final SQL query: '.$exception->getMessage(), [
+                'user_query' => $queryText,
+            ]);
+        }
     }
 
     protected function applyFilter(Builder $query, array $filter): void

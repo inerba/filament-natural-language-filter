@@ -1,10 +1,10 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Tests\Unit;
+namespace Inerba\FilamentNaturalLanguageFilter\Tests\Unit;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use Inerba\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
 use Mockery;
 use Orchestra\Testbench\TestCase;
 

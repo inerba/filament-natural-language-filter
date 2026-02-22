@@ -1,11 +1,12 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
+namespace Inerba\FilamentNaturalLanguageFilter\Services;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 
 class OllamaProcessor implements NaturalLanguageProcessorInterface
 {
@@ -73,7 +74,7 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
             ]);
 
             return $result;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Natural Language Filter Error: '.$e->getMessage(), [
                 'query' => $query,
                 'available_columns' => $availableColumns,
@@ -136,7 +137,7 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
             }
 
             return $isAvailable;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::warning('Ollama availability check failed: '.$e->getMessage());
 
             return false;
@@ -165,13 +166,13 @@ class OllamaProcessor implements NaturalLanguageProcessorInterface
             ->post($url, $requestData);
 
         if (! $response->successful()) {
-            throw new \Exception('Ollama API request failed: '.$response->body());
+            throw new Exception('Ollama API request failed: '.$response->body());
         }
 
         $data = $response->json();
 
         if (! isset($data['response'])) {
-            throw new \Exception('Invalid response from Ollama API');
+            throw new Exception('Invalid response from Ollama API');
         }
 
         return $data['response'];
@@ -266,7 +267,7 @@ Current locale: {$this->locale}";
             }
 
             return $validatedFilters;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error parsing AI response: '.$e->getMessage(), [
                 'response' => $response,
             ]);

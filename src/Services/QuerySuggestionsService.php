@@ -1,10 +1,11 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
+namespace Inerba\FilamentNaturalLanguageFilter\Services;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 
 /**
  * Query Suggestions Service
@@ -106,7 +107,7 @@ class QuerySuggestionsService
             }
 
             return $suggestions;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Query suggestions error: '.$e->getMessage(), [
                 'query' => $partialQuery,
                 'context' => $context,
@@ -198,7 +199,7 @@ class QuerySuggestionsService
             }
 
             return array_slice($suggestions, 0, $this->maxSuggestions);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::warning('Failed to parse AI suggestions: '.$e->getMessage());
 
             return $this->getFallbackSuggestions('');

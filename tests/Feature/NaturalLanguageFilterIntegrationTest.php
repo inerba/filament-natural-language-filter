@@ -1,12 +1,14 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Tests\Feature;
+namespace Inerba\FilamentNaturalLanguageFilter\Tests\Feature;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\FilamentNaturalLanguageFilterServiceProvider;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Inerba\FilamentNaturalLanguageFilter\FilamentNaturalLanguageFilterServiceProvider;
+use Inerba\FilamentNaturalLanguageFilter\Filters\NaturalLanguageFilter;
+use InvalidArgumentException;
 use Mockery;
 use Orchestra\Testbench\TestCase;
 
@@ -99,7 +101,7 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
 
     public function test_natural_language_filter_invalid_search_mode()
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $filter = NaturalLanguageFilter::make('test_filter');
         $filter->searchMode('invalid_mode');
@@ -141,6 +143,36 @@ class NaturalLanguageFilterIntegrationTest extends TestCase
         $result = $filter->apply($query, ['query' => 'users created after 2023']);
 
         $this->assertInstanceOf(Builder::class, $result);
+    }
+
+    public function test_natural_language_filter_logs_final_sql_query()
+    {
+        Http::fake([
+            'localhost:11434/api/generate' => Http::response([
+                'response' => '[{"column": "created_at", "operator": "date_after", "value": "2023-01-01"}]',
+            ], 200),
+        ]);
+
+        Log::spy();
+
+        $filter = NaturalLanguageFilter::make('test_filter')
+            ->availableColumns(['name', 'email', 'created_at']);
+
+        $query = Mockery::mock(Builder::class);
+        $query->shouldReceive('whereDate')->with('created_at', '>', '2023-01-01')->andReturnSelf();
+        $query->shouldReceive('toSql')->once()->andReturn('select * from users where created_at > ?');
+        $query->shouldReceive('getBindings')->once()->andReturn(['2023-01-01']);
+
+        $filter->apply($query, ['query' => 'users created after 2023']);
+
+        Log::shouldHaveReceived('info')
+            ->with('NaturalLanguageFilter - Final SQL Query', Mockery::on(function (array $context): bool {
+                return ($context['user_query'] ?? null) === 'users created after 2023'
+                    && ($context['sql'] ?? null) === 'select * from users where created_at > ?'
+                    && ($context['bindings'] ?? null) === ['2023-01-01']
+                    && ($context['filters_count'] ?? null) === 1;
+            }))
+            ->once();
     }
 
     public function test_natural_language_filter_apply_with_empty_query()

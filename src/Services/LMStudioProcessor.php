@@ -1,11 +1,12 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
+namespace Inerba\FilamentNaturalLanguageFilter\Services;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
 
 class LMStudioProcessor implements NaturalLanguageProcessorInterface
 {
@@ -73,7 +74,7 @@ class LMStudioProcessor implements NaturalLanguageProcessorInterface
             ]);
 
             return $result;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Natural Language Filter Error: '.$e->getMessage(), [
                 'query' => $query,
                 'available_columns' => $availableColumns,
@@ -136,7 +137,7 @@ class LMStudioProcessor implements NaturalLanguageProcessorInterface
             }
 
             return $isAvailable;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::warning('LM Studio availability check failed: '.$e->getMessage());
 
             return false;
@@ -176,13 +177,13 @@ class LMStudioProcessor implements NaturalLanguageProcessorInterface
             ->post($url, $requestData);
 
         if (! $response->successful()) {
-            throw new \Exception('LM Studio API request failed: '.$response->body());
+            throw new Exception('LM Studio API request failed: '.$response->body());
         }
 
         $data = $response->json();
 
         if (! isset($data['choices'][0]['message']['content'])) {
-            throw new \Exception('Invalid response from LM Studio API');
+            throw new Exception('Invalid response from LM Studio API');
         }
 
         return $data['choices'][0]['message']['content'];
@@ -277,7 +278,7 @@ Current locale: {$this->locale}";
             }
 
             return $validatedFilters;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error parsing AI response: '.$e->getMessage(), [
                 'response' => $response,
             ]);

@@ -19,14 +19,14 @@ class VersionBumper
     private function loadComposerData(): void
     {
         if (! file_exists($this->composerPath)) {
-            throw new \Exception('composer.json not found');
+            throw new Exception('composer.json not found');
         }
 
         $content = file_get_contents($this->composerPath);
         $this->composerData = json_decode($content, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \Exception('Invalid JSON in composer.json: '.json_last_error_msg());
+            throw new Exception('Invalid JSON in composer.json: '.json_last_error_msg());
         }
     }
 
@@ -47,7 +47,7 @@ class VersionBumper
         $versionParts = explode('.', $currentVersion);
 
         if (count($versionParts) !== 3) {
-            throw new \Exception('Invalid version format. Expected: x.y.z');
+            throw new Exception('Invalid version format. Expected: x.y.z');
         }
 
         [$major, $minor, $patch] = array_map('intval', $versionParts);

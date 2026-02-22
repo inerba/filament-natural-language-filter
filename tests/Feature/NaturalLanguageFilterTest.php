@@ -1,14 +1,14 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Tests\Feature;
+namespace Inerba\FilamentNaturalLanguageFilter\Tests\Feature;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\FilamentNaturalLanguageFilterServiceProvider;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use Inerba\FilamentNaturalLanguageFilter\FilamentNaturalLanguageFilterServiceProvider;
+use Inerba\FilamentNaturalLanguageFilter\Services\CustomProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use Mockery;
 use Orchestra\Testbench\TestCase;
 
@@ -52,7 +52,7 @@ class NaturalLanguageFilterTest extends TestCase
 
     public function test_service_provider_registers_correctly()
     {
-        $this->assertTrue($this->app->bound('EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface'));
+        $this->assertTrue($this->app->bound('Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface'));
     }
 
     public function test_processor_factory_creates_correct_processor()

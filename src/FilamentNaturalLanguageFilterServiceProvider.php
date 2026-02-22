@@ -1,15 +1,15 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter;
+namespace Inerba\FilamentNaturalLanguageFilter;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\AzureOpenAIProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use Illuminate\Support\ServiceProvider;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use Inerba\FilamentNaturalLanguageFilter\Services\AzureOpenAIProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\CustomProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 
 class FilamentNaturalLanguageFilterServiceProvider extends ServiceProvider
 {
@@ -21,8 +21,7 @@ class FilamentNaturalLanguageFilterServiceProvider extends ServiceProvider
         );
 
         $this->app->singleton(
-            NaturalLanguageProcessorInterface::class,
-            function ($app) {
+            function ($app): NaturalLanguageProcessorInterface {
                 return ProcessorFactory::create();
             }
         );

@@ -1,10 +1,12 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Services;
+namespace Inerba\FilamentNaturalLanguageFilter\Services;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use Exception;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Inerba\FilamentNaturalLanguageFilter\Contracts\NaturalLanguageProcessorInterface;
+use OpenAI\Laravel\Facades\OpenAI;
 
 class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
 {
@@ -58,7 +60,7 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
         try {
             $prompt = $this->buildPrompt($query, $availableColumns);
 
-            $openAI = app('openai');
+            $openAI = resolve('openai');
             $response = $openAI->chat()->create([
                 'model' => config('filament-natural-language-filter.model', 'gpt-3.5-turbo'),
                 'messages' => [
@@ -83,7 +85,7 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
             ]);
 
             return $result;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Natural Language Filter Error: '.$e->getMessage(), [
                 'query' => $query,
                 'available_columns' => $availableColumns,
@@ -131,7 +133,7 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
     protected function checkOpenAiAvailability(): bool
     {
         try {
-            $hasOpenAiClass = class_exists(\OpenAI\Laravel\Facades\OpenAI::class);
+            $hasOpenAiClass = class_exists(OpenAI::class);
             $hasApiKey = ! empty(config('filament-natural-language-filter.openai.api_key')) || ! empty(config('openai.api_key'));
             $isBound = app()->bound('openai');
 
@@ -146,7 +148,7 @@ class NaturalLanguageProcessor implements NaturalLanguageProcessorInterface
             }
 
             return $isAvailable;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::warning('OpenAI availability check failed: '.$e->getMessage());
 
             return false;
@@ -242,7 +244,7 @@ Current locale: {$this->locale}";
             }
 
             return $validatedFilters;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error parsing AI response: '.$e->getMessage(), [
                 'response' => $response,
             ]);

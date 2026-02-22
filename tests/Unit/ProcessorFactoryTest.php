@@ -1,13 +1,13 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Tests\Unit;
+namespace Inerba\FilamentNaturalLanguageFilter\Tests\Unit;
 
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\AzureOpenAIProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\CustomProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
-use EdrisaTuray\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
+use Inerba\FilamentNaturalLanguageFilter\Services\AzureOpenAIProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\CustomProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\LMStudioProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\NaturalLanguageProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\OllamaProcessor;
+use Inerba\FilamentNaturalLanguageFilter\Services\ProcessorFactory;
 use Mockery;
 use Orchestra\Testbench\TestCase;
 

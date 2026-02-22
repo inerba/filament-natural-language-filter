@@ -1,6 +1,6 @@
 <?php
 
-namespace EdrisaTuray\FilamentNaturalLanguageFilter\Enums;
+namespace Inerba\FilamentNaturalLanguageFilter\Enums;
 
 /**
  * Enumeration of supported filter types for natural language processing
