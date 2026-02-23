@@ -194,14 +194,14 @@ class NaturalLanguageFilter extends BaseFilter
      */
     protected function preloaderMessages(?string $staticText = null): HtmlString
     {
-        $phrases = [
+        $phrases = config('filament-natural-language-filter.preloader_messages', [
             'Analizzo la query…',
             'Interpreto il linguaggio naturale…',
             'Identifico colonne e relazioni…',
             'Genero i filtri…',
             'Ottimizzo la risposta…',
             'Quasi fatto…',
-        ];
+        ]);
 
         $jsArray = "['".implode("', '", $phrases)."']";
         $xData = "{p: {$jsArray}, i: 0, init() { setInterval(() => { this.i = (this.i + 1) % this.p.length }, 1200) }}";
