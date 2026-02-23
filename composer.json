@@ -3,7 +3,7 @@
   "description": "Natural language filtering for Filament tables and forms",
   "type": "library",
   "license": "MIT",
-  "version": "1.0.1",
+  "version": "0.1",
   "authors": [
     {
       "name": "Francesco Apruzzese",
