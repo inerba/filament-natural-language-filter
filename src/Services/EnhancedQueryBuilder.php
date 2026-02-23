@@ -2,6 +2,7 @@
 
 namespace Inerba\FilamentNaturalLanguageFilter\Services;
 
+use Filament\Support\Contracts\HasLabel;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 use Inerba\FilamentNaturalLanguageFilter\Enums\FilterType;
@@ -38,6 +39,13 @@ class EnhancedQueryBuilder
     protected array $availableRelations = [];
 
     /**
+     * Map of column name → enum FQCN for automatic label-to-value resolution
+     *
+     * @var array<string, class-string<\BackedEnum>>
+     */
+    protected array $enumColumns = [];
+
+    /**
      * Maximum depth for relationship traversal
      */
     protected int $maxRelationDepth = 2;
@@ -54,11 +62,15 @@ class EnhancedQueryBuilder
      * @param  array  $availableColumns  Available columns for filtering
      * @param  array  $availableRelations  Available relationships for filtering
      */
-    public function __construct(Builder $query, array $availableColumns = [], array $availableRelations = [])
+    /**
+     * @param  array<string, class-string<\BackedEnum>>  $enumColumns
+     */
+    public function __construct(Builder $query, array $availableColumns = [], array $availableRelations = [], array $enumColumns = [])
     {
         $this->query = $query;
         $this->availableColumns = $availableColumns;
         $this->availableRelations = $availableRelations;
+        $this->enumColumns = $enumColumns;
         $this->maxRelationDepth = config('filament-natural-language-filter.features.relationship_filtering.max_depth', 2);
         $this->maxConditions = config('filament-natural-language-filter.features.boolean_logic.max_conditions', 10);
     }
@@ -94,6 +106,13 @@ class EnhancedQueryBuilder
             return;
         }
 
+        // Handle dot-notation columns (e.g. 'customer.surname') → whereHas chain
+        if (str_contains($column, '.')) {
+            $this->applyDotNotationFilter($column, $operator, $value);
+
+            return;
+        }
+
         // Handle aggregation operations
         if ($this->isAggregationOperator($operator)) {
             $this->applyAggregationFilter($column, $operator, $value);
@@ -103,6 +122,37 @@ class EnhancedQueryBuilder
 
         // Apply standard filter
         $this->applyStandardFilter($this->query, $column, $operator, $value);
+    }
+
+    /**
+     * Apply a filter for a dot-notation column (e.g. 'customer.surname').
+     *
+     * Converts the path into a whereHas chain so that every standard operator
+     * (contains, starts_with, equals, …) works correctly across relations.
+     * Eloquent natively supports dot-notation in whereHas for nested relations
+     * (e.g. 'customer.address' → WHERE EXISTS on customers JOIN addresses).
+     *
+     * @param  string  $dotColumn  Full dot-notation column, e.g. 'customer.surname'
+     * @param  string  $operator  Standard filter operator
+     * @param  mixed  $value  Filter value
+     */
+    protected function applyDotNotationFilter(string $dotColumn, string $operator, mixed $value): void
+    {
+        // Security: the full dotted path must be explicitly whitelisted
+        if (! in_array($dotColumn, $this->availableColumns)) {
+            Log::warning("Invalid dot-notation column: {$dotColumn}");
+
+            return;
+        }
+
+        $lastDot = strrpos($dotColumn, '.');
+        $relation = substr($dotColumn, 0, $lastDot); // e.g. 'customer' or 'customer.address'
+        $column = substr($dotColumn, $lastDot + 1);  // leaf column, e.g. 'surname'
+
+        $this->query->whereHas($relation, function (Builder $subQuery) use ($column, $operator, $value): void {
+            // Validation is skipped here because the full dotted path was already validated above
+            $this->applyStandardFilter($subQuery, $column, $operator, $value, skipValidation: true);
+        });
     }
 
     /**
@@ -251,7 +301,7 @@ class EnhancedQueryBuilder
                 $this->query->where(function (Builder $subQuery) use ($conditions) {
                     foreach ($conditions as $condition) {
                         $subQuery->where(function (Builder $innerQuery) use ($condition) {
-                            $builder = new self($innerQuery, $this->availableColumns, $this->availableRelations);
+                            $builder = new self($innerQuery, $this->availableColumns, $this->availableRelations, $this->enumColumns);
                             $builder->applyFilter($condition);
                         });
                     }
@@ -262,11 +312,11 @@ class EnhancedQueryBuilder
                 $this->query->where(function (Builder $subQuery) use ($conditions) {
                     foreach ($conditions as $index => $condition) {
                         if ($index === 0) {
-                            $builder = new self($subQuery, $this->availableColumns, $this->availableRelations);
+                            $builder = new self($subQuery, $this->availableColumns, $this->availableRelations, $this->enumColumns);
                             $builder->applyFilter($condition);
                         } else {
                             $subQuery->orWhere(function (Builder $innerQuery) use ($condition) {
-                                $builder = new self($innerQuery, $this->availableColumns, $this->availableRelations);
+                                $builder = new self($innerQuery, $this->availableColumns, $this->availableRelations, $this->enumColumns);
                                 $builder->applyFilter($condition);
                             });
                         }
@@ -278,7 +328,7 @@ class EnhancedQueryBuilder
                 $this->query->where(function (Builder $subQuery) use ($conditions) {
                     foreach ($conditions as $condition) {
                         $subQuery->whereNot(function (Builder $innerQuery) use ($condition) {
-                            $builder = new self($innerQuery, $this->availableColumns, $this->availableRelations);
+                            $builder = new self($innerQuery, $this->availableColumns, $this->availableRelations, $this->enumColumns);
                             $builder->applyFilter($condition);
                         });
                     }
@@ -295,13 +345,26 @@ class EnhancedQueryBuilder
      * @param  string  $operator  The filter operator
      * @param  mixed  $value  The filter value
      */
-    protected function applyStandardFilter(Builder $query, string $column, string $operator, mixed $value): void
+    protected function applyStandardFilter(Builder $query, string $column, string $operator, mixed $value, bool $skipValidation = false): void
     {
-        // Validate column exists
-        if (! $this->isValidColumn($column)) {
+        // Validate column exists (skip when called from applyDotNotationFilter, which validates the full dotted path)
+        if (! $skipValidation && ! $this->isValidColumn($column)) {
             Log::warning("Invalid column: {$column}");
 
             return;
+        }
+
+        // Resolve enum labels to raw values automatically
+        if (
+            isset($this->enumColumns[$column])
+            && is_string($value)
+            && in_array($operator, ['equals', 'not_equals', 'contains', 'starts_with', 'ends_with', 'in', 'not_in'])
+        ) {
+            $resolved = $this->resolveEnumValue($this->enumColumns[$column], $value, $operator);
+
+            if ($resolved !== null) {
+                [$operator, $value] = $resolved;
+            }
         }
 
         switch ($operator) {
@@ -377,6 +440,61 @@ class EnhancedQueryBuilder
                 }
                 break;
         }
+    }
+
+    /**
+     * Resolve a human-readable text value to matching enum raw values.
+     *
+     * Finds all enum cases whose label contains / equals the given text (case-insensitive)
+     * and rewrites the operator to `equals` (single match) or `in` (multiple matches).
+     *
+     * Returns [$newOperator, $newValue] or null if no match is found.
+     *
+     * @param  class-string<\BackedEnum>  $enumClass
+     * @return array{0: string, 1: mixed}|null
+     */
+    protected function resolveEnumValue(string $enumClass, string $text, string $operator): ?array
+    {
+        if (! is_a($enumClass, \BackedEnum::class, true)) {
+            return null;
+        }
+
+        $needle = mb_strtolower(trim($text), 'UTF-8');
+
+        $matches = [];
+
+        foreach ($enumClass::cases() as $case) {
+            $label = $case instanceof HasLabel
+                ? mb_strtolower((string) $case->getLabel(), 'UTF-8')
+                : mb_strtolower($case->value, 'UTF-8');
+
+            $matched = match (true) {
+                in_array($operator, ['equals', 'not_equals']) => $label === $needle,
+                $operator === 'starts_with'                   => str_starts_with($label, $needle),
+                $operator === 'ends_with'                     => str_ends_with($label, $needle),
+                default                                       => str_contains($label, $needle), // contains / in / not_in
+            };
+
+            if ($matched) {
+                $matches[] = $case->value;
+            }
+        }
+
+        if (empty($matches)) {
+            return null;
+        }
+
+        if (count($matches) === 1) {
+            return [
+                in_array($operator, ['not_equals', 'not_in']) ? 'not_equals' : 'equals',
+                $matches[0],
+            ];
+        }
+
+        return [
+            in_array($operator, ['not_equals', 'not_in']) ? 'not_in' : 'in',
+            $matches,
+        ];
     }
 
     /**
