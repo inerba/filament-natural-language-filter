@@ -151,6 +151,29 @@ class NaturalLanguageProcessorTest extends TestCase
         $this->assertCount(2, $result[0]['conditions']);
     }
 
+    public function test_system_prompt_includes_or_detection_instructions(): void
+    {
+        $processor = new NaturalLanguageProcessor;
+
+        $reflection = new \ReflectionMethod($processor, 'getSystemPrompt');
+        $prompt = $reflection->invoke($processor);
+
+        $this->assertStringContainsString('boolean_filter', $prompt);
+        $this->assertStringContainsString('"or"', $prompt);
+        $this->assertStringContainsString('CRITICAL', $prompt);
+        $this->assertStringContainsString('"o"', $prompt);
+    }
+
+    public function test_supported_filters_include_boolean_operators(): void
+    {
+        $processor = new NaturalLanguageProcessor;
+        $types = $processor->getSupportedFilterTypes();
+
+        $this->assertContains('or', $types);
+        $this->assertContains('and', $types);
+        $this->assertContains('not', $types);
+    }
+
     private function makeResponsesApiResponse(string $outputText, string $status = 'completed'): object
     {
         return (object) [
