@@ -24,6 +24,9 @@ class NaturalLanguageFilter extends BaseFilter
 
     protected array $customColumnMappings = [];
 
+    /** @var array<string, class-string<\BackedEnum>> */
+    protected array $enumColumns = [];
+
     protected ?string $systemPromptAddition = null;
 
     protected ?NaturalLanguageProcessorInterface $processor = null;
@@ -66,6 +69,25 @@ class NaturalLanguageFilter extends BaseFilter
         $this->customColumnMappings = $mappings;
 
         return $this;
+    }
+
+    /**
+     * Declare enum-backed columns so the query builder can automatically
+     * resolve human-readable labels to raw enum values.
+     *
+     * @param  array<string, class-string<\BackedEnum>>  $columns  Map of column name → enum FQCN
+     */
+    public function enumColumns(array $columns): static
+    {
+        $this->enumColumns = $columns;
+
+        return $this;
+    }
+
+    /** @return array<string, class-string<\BackedEnum>> */
+    public function getEnumColumns(): array
+    {
+        return $this->enumColumns;
     }
 
     /**
@@ -301,7 +323,8 @@ class NaturalLanguageFilter extends BaseFilter
             $enhancedBuilder = new EnhancedQueryBuilder(
                 $query,
                 $this->getAvailableColumns(),
-                $this->getAvailableRelations()
+                $this->getAvailableRelations(),
+                $this->getEnumColumns()
             );
 
             // Apply each filter using the enhanced builder
