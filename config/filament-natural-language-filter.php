@@ -16,7 +16,7 @@ return [
     'openai' => [
         'api_key' => env('OPENAI_API_KEY'),
         'organization' => env('OPENAI_ORGANIZATION'),
-        'max_output_tokens' => env('FILAMENT_NL_FILTER_MAX_TOKENS', 1024),
+        'max_output_tokens' => env('FILAMENT_NL_FILTER_MAX_TOKENS', 2048),
         'temperature' => env('FILAMENT_NL_FILTER_TEMPERATURE'), // null = use model default (required for o1/o3/gpt-5 series)
     ],
 
@@ -63,6 +63,9 @@ return [
         'date_before',
         'date_after',
         'date_between',
+        'or',
+        'and',
+        'not',
     ],
 
     /*
@@ -96,5 +99,19 @@ return [
             'enabled' => env('FILAMENT_NL_FILTER_AGGREGATION_QUERIES', true),
             'allowed_operations' => ['count', 'sum', 'avg', 'min', 'max'],
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Preloader Messages (AI Processing Status)
+    |--------------------------------------------------------------------------
+    */
+    'preloader_messages' => [
+        'Analizzo la query…',
+        'Interpreto il linguaggio naturale…',
+        'Identifico colonne e relazioni…',
+        'Genero i filtri…',
+        'Ottimizzo la risposta…',
+        'Quasi fatto…',
     ],
 ];
