@@ -86,6 +86,13 @@ class EnhancedQueryBuilder
     {
         $this->validateFilter($filter);
 
+        // Handle aggregate_filter (no 'operator' key — must be detected before $operator extraction)
+        if (isset($filter['aggregate'], $filter['relation'])) {
+            $this->applyRelationAggregateFilter($filter);
+
+            return;
+        }
+
         $operator = $filter['operator'];
 
         // Handle boolean logic first (these filters have no 'column' key)
@@ -153,6 +160,62 @@ class EnhancedQueryBuilder
             // Validation is skipped here because the full dotted path was already validated above
             $this->applyStandardFilter($subQuery, $column, $operator, $value, skipValidation: true);
         });
+    }
+
+    /**
+     * Apply a relation-based aggregate filter (aggregate_filter schema type).
+     *
+     * Supports two modes (independently or combined):
+     * - Threshold: filters records where the relation aggregate satisfies a comparison (e.g. COUNT >= 5)
+     * - Sort: orders records by the relation aggregate (e.g. ORDER BY SUM(minutes) DESC)
+     *
+     * For count-only thresholds without ordering, `has()` is used instead of `withCount` + `having`
+     * to ensure cross-database safety (works on SQLite, MySQL, PostgreSQL).
+     *
+     * @param  array{relation: string, aggregate: string, column: string|null, comparison: string|null, value: float|null, order: string|null}  $filter
+     */
+    protected function applyRelationAggregateFilter(array $filter): void
+    {
+        $relation   = $filter['relation'];
+        $aggregate  = $filter['aggregate'];
+        $column     = $filter['column'] ?? null;
+        $comparison = $filter['comparison'] ?? null;
+        $value      = $filter['value'] ?? null;
+        $order      = $filter['order'] ?? null;
+
+        if (! $this->isValidRelationship($relation)) {
+            Log::warning("aggregate_filter: invalid relation '{$relation}'");
+
+            return;
+        }
+
+        // Count-only threshold without ordering: use has() for cross-DB safety
+        if ($aggregate === 'count' && $comparison !== null && $value !== null && $order === null) {
+            $this->query->has($relation, $comparison, (int) $value);
+
+            return;
+        }
+
+        // For all other cases, apply the aggregate selector + optional HAVING + optional ORDER
+        $alias = $aggregate === 'count'
+            ? "{$relation}_count"
+            : "{$relation}_{$column}_{$aggregate}";
+
+        match ($aggregate) {
+            'count' => $this->query->withCount($relation),
+            'sum'   => $this->query->withSum($relation, $column),
+            'avg'   => $this->query->withAvg($relation, $column),
+            'min'   => $this->query->withMin($relation, $column),
+            'max'   => $this->query->withMax($relation, $column),
+        };
+
+        if ($comparison !== null && $value !== null) {
+            $this->query->having($alias, $comparison, $value);
+        }
+
+        if ($order !== null) {
+            $this->query->orderBy($alias, $order);
+        }
     }
 
     /**
@@ -506,6 +569,21 @@ class EnhancedQueryBuilder
      */
     protected function validateFilter(array $filter): void
     {
+        // aggregate_filter: identified by 'aggregate' key (no 'operator' key)
+        if (isset($filter['aggregate'])) {
+            $allowed = FilterType::getAggregationTypes();
+
+            if (! isset($filter['relation']) || ! in_array($filter['aggregate'], $allowed)) {
+                throw new InvalidArgumentException("aggregate_filter requires a valid 'relation' and 'aggregate' field");
+            }
+
+            if ($filter['aggregate'] !== 'count' && empty($filter['column'])) {
+                throw new InvalidArgumentException("aggregate_filter with aggregate '{$filter['aggregate']}' requires a 'column'");
+            }
+
+            return;
+        }
+
         if (! isset($filter['operator'])) {
             throw new InvalidArgumentException('Filter must have an operator');
         }

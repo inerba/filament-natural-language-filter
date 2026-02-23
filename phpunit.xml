@@ -33,7 +33,6 @@
         <env name="CACHE_DRIVER" value="array"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="FILAMENT_NL_FILTER_PROVIDER" value="openai"/>
         <env name="FILAMENT_NL_FILTER_CACHE_ENABLED" value="false"/>
     </php>
 </phpunit>

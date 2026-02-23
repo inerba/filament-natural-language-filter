@@ -123,4 +123,67 @@ class EnhancedQueryBuilderTest extends TestCase
         $this->assertContains('%mario%', $bindings);
         $this->assertContains('%gmail%', $bindings);
     }
+
+    public function test_validate_filter_throws_for_aggregate_with_missing_relation(): void
+    {
+        $query = $this->makeQuery();
+        $builder = new EnhancedQueryBuilder($query, ['name'], ['orders']);
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $builder->applyFilter([
+            'aggregate' => 'count',
+            // 'relation' intentionally missing
+        ]);
+    }
+
+    public function test_validate_filter_throws_for_aggregate_with_invalid_aggregate(): void
+    {
+        $query = $this->makeQuery();
+        $builder = new EnhancedQueryBuilder($query, ['name'], ['orders']);
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $builder->applyFilter([
+            'relation'  => 'orders',
+            'aggregate' => 'invalid_agg',
+        ]);
+    }
+
+    public function test_validate_filter_throws_for_sum_aggregate_without_column(): void
+    {
+        $query = $this->makeQuery();
+        $builder = new EnhancedQueryBuilder($query, ['name'], ['orders']);
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        $builder->applyFilter([
+            'relation'   => 'orders',
+            'aggregate'  => 'sum',
+            'column'     => null,
+            'comparison' => '>=',
+            'value'      => 100,
+            'order'      => null,
+        ]);
+    }
+
+    public function test_aggregate_filter_invalid_relation_is_silently_ignored(): void
+    {
+        $query = $this->makeQuery();
+        // 'orders' is NOT in availableRelations → should be ignored, not throw
+        $builder = new EnhancedQueryBuilder($query, ['name'], ['customers']);
+
+        $sqlBefore = $builder->getQuery()->toSql();
+
+        $builder->applyFilter([
+            'relation'   => 'orders',
+            'aggregate'  => 'count',
+            'column'     => null,
+            'comparison' => '>=',
+            'value'      => 5,
+            'order'      => null,
+        ]);
+
+        $this->assertSame($sqlBefore, $builder->getQuery()->toSql());
+    }
 }

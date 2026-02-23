@@ -14,24 +14,13 @@ composer require inerba/filament-natural-language-filter
 
 ```bash
 php artisan vendor:publish --tag="filament-natural-language-filter-config"
+php artisan openai:install
 ```
 
 2. Add your AI provider configuration to your `.env` file:
 
-**For OpenAI:**
-
 ```env
-FILAMENT_NL_FILTER_PROVIDER=openai
 OPENAI_API_KEY=your-openai-api-key-here
-```
-
-**For Azure OpenAI:**
-
-```env
-FILAMENT_NL_FILTER_PROVIDER=azure
-AZURE_OPENAI_API_KEY=your-azure-openai-api-key
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_DEPLOYMENT_NAME=your-deployment-name
 ```
 
 ## Usage
@@ -96,14 +85,6 @@ NaturalLanguageFilter::make()
 // Supports: "top 10 users by order count"
 // "products with highest sales"
 // "users with most posts"
-```
-
-#### Query Suggestions
-
-```php
-// Enable AI-powered query suggestions
-// Provides autocomplete and intelligent suggestions
-// based on available columns and relationships
 ```
 
 ## Real-World Implementation Examples

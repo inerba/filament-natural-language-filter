@@ -264,6 +264,121 @@ class NaturalLanguageProcessorTest extends TestCase
         $this->assertContains('equals', $operatorField['enum']);
     }
 
+    public function test_json_schema_includes_aggregate_filter_definition(): void
+    {
+        $processor = new NaturalLanguageProcessor;
+
+        $cacheProperty = new \ReflectionProperty($processor, 'cachedJsonSchema');
+        $cacheProperty->setValue(null, null);
+
+        $reflection = new \ReflectionMethod($processor, 'getJsonSchema');
+        $schema = $reflection->invoke($processor);
+
+        $this->assertArrayHasKey('aggregate_filter', $schema['schema']['$defs']);
+
+        $aggregateDef = $schema['schema']['$defs']['aggregate_filter'];
+        $this->assertArrayHasKey('aggregate', $aggregateDef['properties']);
+        $this->assertContains('count', $aggregateDef['properties']['aggregate']['enum']);
+        $this->assertContains('sum', $aggregateDef['properties']['aggregate']['enum']);
+
+        // aggregate_filter must be included in filter_item.anyOf
+        $refs = array_column($schema['schema']['$defs']['filter_item']['anyOf'], '$ref');
+        $this->assertContains('#/$defs/aggregate_filter', $refs);
+    }
+
+    public function test_it_handles_aggregate_filter_count_threshold(): void
+    {
+        $json = '{"filters":[{"relation":"orders","aggregate":"count","column":null,"comparison":">=","value":5,"order":null}]}';
+
+        $responsesMock = Mockery::mock();
+        $responsesMock->shouldReceive('create')->once()->andReturn($this->makeResponsesApiResponse($json));
+
+        $openAiMock = Mockery::mock();
+        $openAiMock->shouldReceive('responses')->once()->andReturn($responsesMock);
+        $this->app->instance('openai', $openAiMock);
+
+        $processor = new NaturalLanguageProcessor;
+        $result = $processor->processQuery('records with more than 5 orders', ['name'], ['orders']);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('orders', $result[0]['relation']);
+        $this->assertSame('count', $result[0]['aggregate']);
+        $this->assertSame('>=', $result[0]['comparison']);
+        $this->assertSame(5, $result[0]['value']);
+        $this->assertNull($result[0]['order']);
+    }
+
+    public function test_it_handles_aggregate_filter_sum_with_order(): void
+    {
+        $json = '{"filters":[{"relation":"workLogs","aggregate":"sum","column":"minutes","comparison":null,"value":null,"order":"desc"}]}';
+
+        $responsesMock = Mockery::mock();
+        $responsesMock->shouldReceive('create')->once()->andReturn($this->makeResponsesApiResponse($json));
+
+        $openAiMock = Mockery::mock();
+        $openAiMock->shouldReceive('responses')->once()->andReturn($responsesMock);
+        $this->app->instance('openai', $openAiMock);
+
+        $processor = new NaturalLanguageProcessor;
+        $result = $processor->processQuery('top clients by hours', ['name'], ['workLogs']);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('workLogs', $result[0]['relation']);
+        $this->assertSame('sum', $result[0]['aggregate']);
+        $this->assertSame('minutes', $result[0]['column']);
+        $this->assertNull($result[0]['comparison']);
+        $this->assertSame('desc', $result[0]['order']);
+    }
+
+    public function test_validate_filter_rejects_aggregate_with_missing_relation(): void
+    {
+        $processor = new NaturalLanguageProcessor;
+
+        $reflection = new \ReflectionMethod($processor, 'validateFilter');
+
+        $this->assertFalse($reflection->invoke($processor, [
+            'aggregate' => 'count',
+            // 'relation' intentionally missing
+        ]));
+    }
+
+    public function test_validate_filter_rejects_aggregate_with_invalid_aggregate(): void
+    {
+        $processor = new NaturalLanguageProcessor;
+
+        $reflection = new \ReflectionMethod($processor, 'validateFilter');
+
+        $this->assertFalse($reflection->invoke($processor, [
+            'relation'  => 'orders',
+            'aggregate' => 'invalid_op',
+        ]));
+    }
+
+    public function test_validate_filter_rejects_sum_aggregate_without_column(): void
+    {
+        $processor = new NaturalLanguageProcessor;
+
+        $reflection = new \ReflectionMethod($processor, 'validateFilter');
+
+        $this->assertFalse($reflection->invoke($processor, [
+            'relation'  => 'orders',
+            'aggregate' => 'sum',
+            'column'    => null,
+        ]));
+    }
+
+    public function test_system_prompt_includes_aggregation_instructions(): void
+    {
+        $processor = new NaturalLanguageProcessor;
+
+        $reflection = new \ReflectionMethod($processor, 'getSystemPrompt');
+        $prompt = $reflection->invoke($processor);
+
+        $this->assertStringContainsString('aggregate_filter', $prompt);
+        $this->assertStringContainsString('count', $prompt);
+        $this->assertStringContainsString('sum', $prompt);
+    }
+
     private function makeResponsesApiResponse(string $outputText, string $status = 'completed'): object
     {
         return (object) [

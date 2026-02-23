@@ -305,6 +305,10 @@ Rules:
 - Relationship queries ("with role admin", "con ruolo editor") → relationship_filter with has_relation operator.
 - Dot-notation columns (e.g. "customer.surname", "user.name") represent relationship columns. Use them directly in standard_filter with the FULL dotted name as the column value (e.g. {"column": "customer.surname", "operator": "contains", "value": "rossi"}). Do NOT split them into a relationship_filter — the system handles the join automatically.
 - OR + AND in the same query: put the OR group as one top-level boolean_filter, each AND condition as separate top-level filters.
+- Aggregation: use aggregate_filter ONLY when the user explicitly asks to count, sum, rank, or compare by a relationship aggregate. Examples:
+  - "records with more than 5 related items" → aggregate_filter(relation=items, aggregate=count, column=null, comparison=>=, value=5, order=null)
+  - "top records by total hours" → aggregate_filter(relation=workLogs, aggregate=sum, column=minutes, comparison=null, value=null, order=desc)
+  - "records with at least 3 notes, sorted by note count" → aggregate_filter(relation=notes, aggregate=count, column=null, comparison=>=, value=3, order=desc)
 - If the query cannot be interpreted, return {"filters": []}.
 
 Examples:
@@ -354,7 +358,7 @@ PROMPT;
             return static::$cachedJsonSchema;
         }
 
-        return [
+        $schema = [
             'type' => 'json_schema',
             'name' => 'natural_language_filters',
             'strict' => true,
@@ -374,6 +378,7 @@ PROMPT;
                             ['$ref' => '#/$defs/standard_filter'],
                             ['$ref' => '#/$defs/relationship_filter'],
                             ['$ref' => '#/$defs/boolean_filter'],
+                            ['$ref' => '#/$defs/aggregate_filter'],
                         ],
                     ],
                     'standard_filter' => [
@@ -430,6 +435,32 @@ PROMPT;
                             ],
                         ],
                         'required' => ['operator', 'conditions'],
+                        'additionalProperties' => false,
+                    ],
+                    'aggregate_filter' => [
+                        'type' => 'object',
+                        'description' => 'Filter or sort records by an aggregate value computed over a relationship (count, sum, avg, min, max). Use only when the user explicitly refers to counting, summing, or ranking by a relation.',
+                        'properties' => [
+                            'relation'   => ['type' => 'string', 'description' => 'The Eloquent relationship name.'],
+                            'aggregate'  => ['type' => 'string', 'enum' => ['count', 'sum', 'avg', 'min', 'max'], 'description' => 'The aggregate function.'],
+                            'column'     => [
+                                'description' => 'The column to aggregate. Null for count.',
+                                'anyOf' => [['type' => 'string'], ['type' => 'null']],
+                            ],
+                            'comparison' => [
+                                'description' => 'Comparison operator for threshold filtering. Null for sort-only.',
+                                'anyOf' => [['type' => 'string', 'enum' => ['>=', '>', '<=', '<', '=']], ['type' => 'null']],
+                            ],
+                            'value' => [
+                                'description' => 'Threshold value. Null for sort-only.',
+                                'anyOf' => [['type' => 'number'], ['type' => 'null']],
+                            ],
+                            'order' => [
+                                'description' => 'Sort direction. Null for filter-only.',
+                                'anyOf' => [['type' => 'string', 'enum' => ['asc', 'desc']], ['type' => 'null']],
+                            ],
+                        ],
+                        'required'             => ['relation', 'aggregate', 'column', 'comparison', 'value', 'order'],
                         'additionalProperties' => false,
                     ],
                 ],
@@ -552,6 +583,21 @@ PROMPT;
                 if (! is_array($condition) || ! $this->validateFilter($condition)) {
                     return false;
                 }
+            }
+
+            return true;
+        }
+
+        // Aggregate filters: identified by 'aggregate' key (no 'operator' key)
+        if (isset($filter['aggregate'])) {
+            $allowedAggregates = ['count', 'sum', 'avg', 'min', 'max'];
+
+            if (! isset($filter['relation']) || ! in_array($filter['aggregate'], $allowedAggregates)) {
+                return false;
+            }
+
+            if ($filter['aggregate'] !== 'count' && empty($filter['column'])) {
+                return false;
             }
 
             return true;
