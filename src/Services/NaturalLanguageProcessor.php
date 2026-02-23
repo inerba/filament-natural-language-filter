@@ -378,7 +378,11 @@ PROMPT;
                         'description' => 'A filter on a direct table column using an operator and value.',
                         'properties' => [
                             'column' => ['type' => 'string', 'description' => 'The database column name.'],
-                            'operator' => ['type' => 'string', 'description' => 'The filter operator (e.g. equals, contains, date_after, between, in).'],
+                            'operator' => [
+                                'type' => 'string',
+                                'description' => 'The filter operator.',
+                                'enum' => ['equals', 'not_equals', 'contains', 'starts_with', 'ends_with', 'greater_than', 'less_than', 'between', 'in', 'not_in', 'is_null', 'is_not_null', 'date_equals', 'date_before', 'date_after', 'date_between'],
+                            ],
                             'value' => [
                                 'description' => 'The filter value. Use an array of two elements for between/date_between, an array for in/not_in, null for is_null/is_not_null, otherwise a string or number.',
                                 'anyOf' => [
@@ -450,11 +454,15 @@ PROMPT;
 
             if (is_array($decoded) && array_key_exists('filters', $decoded) && is_array($decoded['filters'])) {
                 $filters = $decoded['filters'];
+            } elseif (is_array($decoded) && array_key_exists('filter', $decoded) && is_array($decoded['filter'])) {
+                $filters = [$decoded['filter']];
             } elseif (is_array($decoded)) {
                 $filters = $decoded;
             } else {
                 $filters = [];
             }
+
+            $filters = array_map(fn (array $filter): array => $this->normalizeFilterOperators($filter), $filters);
 
             $validatedFilters = [];
             foreach ($filters as $filter) {
@@ -473,6 +481,55 @@ PROMPT;
 
             return [];
         }
+    }
+
+    /**
+     * Recursively normalize operator names in a filter to their canonical form.
+     *
+     * Maps common AI-returned aliases (e.g. "like", "!=", ">") to the supported
+     * operator names (e.g. "contains", "not_equals", "greater_than").
+     *
+     * @param  array<string, mixed>  $filter
+     * @return array<string, mixed>
+     */
+    protected function normalizeFilterOperators(array $filter): array
+    {
+        static $operatorAliases = [
+            'like' => 'contains',
+            'ilike' => 'contains',
+            'not_like' => 'not_equals',
+            '=' => 'equals',
+            '==' => 'equals',
+            '!=' => 'not_equals',
+            '<>' => 'not_equals',
+            '>' => 'greater_than',
+            '>=' => 'greater_than',
+            '<' => 'less_than',
+            '<=' => 'less_than',
+            'gt' => 'greater_than',
+            'gte' => 'greater_than',
+            'lt' => 'less_than',
+            'lte' => 'less_than',
+            'is' => 'equals',
+            'not' => 'not_equals',
+            'null' => 'is_null',
+            'not_null' => 'is_not_null',
+            'notnull' => 'is_not_null',
+        ];
+
+        if (isset($filter['conditions']) && is_array($filter['conditions'])) {
+            $filter['conditions'] = array_map(
+                fn (array $c): array => $this->normalizeFilterOperators($c),
+                $filter['conditions']
+            );
+        }
+
+        if (isset($filter['operator']) && is_string($filter['operator'])) {
+            $lower = strtolower(trim($filter['operator']));
+            $filter['operator'] = $operatorAliases[$lower] ?? $lower;
+        }
+
+        return $filter;
     }
 
     protected function validateFilter(array $filter): bool

@@ -174,6 +174,96 @@ class NaturalLanguageProcessorTest extends TestCase
         $this->assertContains('not', $types);
     }
 
+    public function test_it_normalizes_like_operator_to_contains(): void
+    {
+        $json = '{"filters":[{"operator":"or","conditions":[{"column":"name","operator":"like","value":"mario"},{"column":"name","operator":"like","value":"luigi"}]}]}';
+
+        $responsesMock = Mockery::mock();
+        $responsesMock
+            ->shouldReceive('create')
+            ->once()
+            ->andReturn($this->makeResponsesApiResponse($json));
+
+        $openAiMock = Mockery::mock();
+        $openAiMock->shouldReceive('responses')->once()->andReturn($responsesMock);
+
+        $this->app->instance('openai', $openAiMock);
+
+        $processor = new NaturalLanguageProcessor;
+        $result = $processor->processQuery('utenti che nel nome hanno mario o luigi', ['name']);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('or', $result[0]['operator']);
+        $this->assertCount(2, $result[0]['conditions']);
+        $this->assertSame('contains', $result[0]['conditions'][0]['operator']);
+        $this->assertSame('contains', $result[0]['conditions'][1]['operator']);
+    }
+
+    public function test_it_normalizes_common_operator_aliases(): void
+    {
+        $json = '{"filters":[{"column":"age","operator":">=","value":"18"},{"column":"name","operator":"like","value":"test"}]}';
+
+        $responsesMock = Mockery::mock();
+        $responsesMock
+            ->shouldReceive('create')
+            ->once()
+            ->andReturn($this->makeResponsesApiResponse($json));
+
+        $openAiMock = Mockery::mock();
+        $openAiMock->shouldReceive('responses')->once()->andReturn($responsesMock);
+
+        $this->app->instance('openai', $openAiMock);
+
+        $processor = new NaturalLanguageProcessor;
+        $result = $processor->processQuery('users over 18 with name like test', ['age', 'name']);
+
+        $this->assertCount(2, $result);
+        $this->assertSame('greater_than', $result[0]['operator']);
+        $this->assertSame('contains', $result[1]['operator']);
+    }
+
+    public function test_it_handles_singular_filter_key(): void
+    {
+        $json = '{"filter":{"operator":"or","conditions":[{"column":"name","operator":"contains","value":"mario"},{"column":"name","operator":"contains","value":"luigi"}]}}';
+
+        $responsesMock = Mockery::mock();
+        $responsesMock
+            ->shouldReceive('create')
+            ->once()
+            ->andReturn($this->makeResponsesApiResponse($json));
+
+        $openAiMock = Mockery::mock();
+        $openAiMock->shouldReceive('responses')->once()->andReturn($responsesMock);
+
+        $this->app->instance('openai', $openAiMock);
+
+        $processor = new NaturalLanguageProcessor;
+        $result = $processor->processQuery('utenti mario o luigi', ['name']);
+
+        $this->assertCount(1, $result);
+        $this->assertSame('or', $result[0]['operator']);
+        $this->assertCount(2, $result[0]['conditions']);
+    }
+
+    public function test_json_schema_includes_operator_enum(): void
+    {
+        $processor = new NaturalLanguageProcessor;
+
+        // Reset static cache so our test gets a fresh schema
+        $cacheProperty = new \ReflectionProperty($processor, 'cachedJsonSchema');
+        $cacheProperty->setValue(null, null);
+
+        $reflection = new \ReflectionMethod($processor, 'getJsonSchema');
+        $schema = $reflection->invoke($processor);
+
+        $standardFilter = $schema['schema']['$defs']['standard_filter'] ?? [];
+        $operatorField = $standardFilter['properties']['operator'] ?? [];
+
+        $this->assertArrayHasKey('enum', $operatorField);
+        $this->assertContains('contains', $operatorField['enum']);
+        $this->assertContains('equals', $operatorField['enum']);
+    }
+
     private function makeResponsesApiResponse(string $outputText, string $status = 'completed'): object
     {
         return (object) [
