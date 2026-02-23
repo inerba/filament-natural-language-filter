@@ -299,10 +299,17 @@ Operators: {$operators}
 Rules:
 - Multiple top-level filters are implicitly ANDed.
 - Relative dates (today, yesterday, last year…) → ISO date (YYYY-MM-DD). Today is {$today}.
-- Boolean words in any language (o/ou/oder/or → or; e/et/und/and → and; non/nicht/not → not) → boolean_filter.
+- CRITICAL — OR detection: When the user separates alternatives with "o" (Italian), "or" (English), "ou" (French/Portuguese), "oder" (German), "или" (Russian), you MUST emit a single boolean_filter with operator "or" wrapping the alternatives as conditions. NEVER emit separate top-level filters for alternatives joined by these words — that would AND them, which is the opposite of the user's intent.
+- AND words ("e", "and", "et", "und") → separate top-level filters (implicit AND) or boolean_filter with operator "and".
+- NOT words ("non", "not", "nicht") → boolean_filter with operator "not".
 - Relationship queries ("with role admin", "con ruolo editor") → relationship_filter with has_relation operator.
 - OR + AND in the same query: put the OR group as one top-level boolean_filter, each AND condition as separate top-level filters.
 - If the query cannot be interpreted, return {"filters": []}.
+
+Examples:
+- "nomi che iniziano per dr o ing" → {"filters":[{"operator":"or","conditions":[{"column":"name","operator":"starts_with","value":"dr"},{"column":"name","operator":"starts_with","value":"ing"}]}]}
+- "email contains gmail o yahoo" → {"filters":[{"operator":"or","conditions":[{"column":"email","operator":"contains","value":"gmail"},{"column":"email","operator":"contains","value":"yahoo"}]}]}
+- "nome contiene mario e cognome contiene rossi" → {"filters":[{"column":"name","operator":"contains","value":"mario"},{"column":"surname","operator":"contains","value":"rossi"}]}
 Locale: {$this->locale}
 PROMPT;
 
