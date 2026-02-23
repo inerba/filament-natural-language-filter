@@ -303,6 +303,7 @@ Rules:
 - AND words ("e", "and", "et", "und") → separate top-level filters (implicit AND) or boolean_filter with operator "and".
 - NOT words ("non", "not", "nicht") → boolean_filter with operator "not".
 - Relationship queries ("with role admin", "con ruolo editor") → relationship_filter with has_relation operator.
+- Dot-notation columns (e.g. "customer.surname", "user.name") represent relationship columns. Use them directly in standard_filter with the FULL dotted name as the column value (e.g. {"column": "customer.surname", "operator": "contains", "value": "rossi"}). Do NOT split them into a relationship_filter — the system handles the join automatically.
 - OR + AND in the same query: put the OR group as one top-level boolean_filter, each AND condition as separate top-level filters.
 - If the query cannot be interpreted, return {"filters": []}.
 
@@ -310,6 +311,8 @@ Examples:
 - "nomi che iniziano per dr o ing" → {"filters":[{"operator":"or","conditions":[{"column":"name","operator":"starts_with","value":"dr"},{"column":"name","operator":"starts_with","value":"ing"}]}]}
 - "email contains gmail o yahoo" → {"filters":[{"operator":"or","conditions":[{"column":"email","operator":"contains","value":"gmail"},{"column":"email","operator":"contains","value":"yahoo"}]}]}
 - "nome contiene mario e cognome contiene rossi" → {"filters":[{"column":"name","operator":"contains","value":"mario"},{"column":"surname","operator":"contains","value":"rossi"}]}
+- "clienti con cognome rossi" (with customer.surname available) → {"filters":[{"column":"customer.surname","operator":"contains","value":"rossi"}]}
+- "lavori di mario rossi" (with customer.surname and customer.name available) → {"filters":[{"column":"customer.name","operator":"contains","value":"mario"},{"column":"customer.surname","operator":"contains","value":"rossi"}]}
 Locale: {$this->locale}
 PROMPT;
 
