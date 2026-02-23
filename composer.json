@@ -3,7 +3,6 @@
   "description": "Natural language filtering for Filament tables and forms",
   "type": "library",
   "license": "MIT",
-  "version": "0.1",
   "authors": [
     {
       "name": "Francesco Apruzzese",
@@ -49,11 +48,7 @@
     "test-coverage": "vendor/bin/phpunit --coverage-text --coverage-clover=coverage.clover",
     "cs-check": "vendor/bin/php-cs-fixer fix --dry-run --diff",
     "cs-fix": "vendor/bin/php-cs-fixer fix",
-    "phpstan": "vendor/bin/phpstan analyse --memory-limit=512M",
-    "version:patch": "php scripts/version-bump.php patch",
-    "version:minor": "php scripts/version-bump.php minor",
-    "version:major": "php scripts/version-bump.php major",
-    "version:show": "php -r \"echo json_decode(file_get_contents('composer.json'), true)['version'] ?? '0.0.0';\""
+    "phpstan": "vendor/bin/phpstan analyse --memory-limit=512M"
   },
   "extra": {
     "laravel": {
